@@ -20,8 +20,3 @@ npm run dev
 ```bash
 npm run build
 ```
-
-## Notas
-
-- Detecta usuario desde `Telegram.WebApp.initDataUnsafe.user.id` cuando corre dentro de Telegram.
-- Fuera de Telegram permite escribir manualmente un `user_id` para pruebas.
