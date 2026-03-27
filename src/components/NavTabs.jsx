@@ -1,10 +1,19 @@
-const tabs = [
+const baseTabs = [
   { key: 'movimientos', label: 'Movimientos' },
   { key: 'deudas', label: 'Deudas' },
   { key: 'dashboard', label: 'Dashboard' },
 ]
 
-export default function NavTabs({ current, onChange }) {
+export default function NavTabs({ current, onChange, showPrestamos = false }) {
+  const tabs = showPrestamos
+    ? [
+        baseTabs[0],
+        { key: 'prestamos', label: 'Préstamos' },
+        baseTabs[1],
+        baseTabs[2],
+      ]
+    : baseTabs
+
   return (
     <nav className="tabs">
       {tabs.map((tab) => (

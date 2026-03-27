@@ -5,10 +5,12 @@ import MessageBanner from './components/MessageBanner'
 import DashboardPage from './pages/DashboardPage'
 import MovimientosPage from './pages/MovimientosPage'
 import DeudasPage from './pages/DeudasPage'
+import PrestamosPage from './pages/PrestamosPage'
 import { api } from './api/client'
 import { useTelegramMiniApp } from './hooks/useTelegramMiniApp'
 import { getPaletteByUser } from './theme'
 import { applyTheme } from './theme/applyTheme'
+
 
 function normalizeUserLabel(user) {
   if (!user) return ''
@@ -29,6 +31,8 @@ export default function App() {
   const userId = tgUserId || manualUserId
   const palette = useMemo(() => getPaletteByUser(userId), [userId])
   const userLabel = tgUserId ? normalizeUserLabel(user) : `Prueba manual · ${manualUserId}`
+
+  const canUsePrestamos = String(userId) === "1282471582";
 
   useEffect(() => {
     applyTheme(palette)
@@ -61,8 +65,8 @@ export default function App() {
 
   return (
     <Layout
-      title="Finanzas"
-      subtitle={isTelegram ? 'Mini App conectada a tu bot' : 'Modo web para pruebas y desarrollo'}
+      title="Gestor Finanzas"
+      subtitle={isTelegram ? 'Desarrollado Por G&G' : 'Modo web para pruebas y desarrollo'}
       userLabel={userLabel}
       userId={userId}
       actions={
@@ -70,11 +74,10 @@ export default function App() {
           <button className="ghost-btn" onClick={() => setShowAmounts((v) => !v)}>
             {showAmounts ? 'Ocultar montos' : 'Mostrar montos'}
           </button>
-          <button className="ghost-btn" onClick={loadAllData}>Recargar</button>
         </>
       }
     >
-      {!isTelegram && (
+        {!isTelegram && (
         <section className="panel compact-panel">
           <div className="manual-user-row">
             <label>
@@ -89,7 +92,7 @@ export default function App() {
       {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
       {health ? <MessageBanner kind="success">API conectada correctamente.</MessageBanner> : null}
 
-      <NavTabs current={activeTab} onChange={setActiveTab} />
+      <NavTabs current={activeTab} onChange={setActiveTab} showPrestamos={canUsePrestamos} />
 
       {activeTab === 'movimientos' && (
         <MovimientosPage
@@ -117,6 +120,15 @@ export default function App() {
           palette={palette}
           dashboard={dashboard}
           showAmounts={showAmounts}
+        />
+      )}
+
+      {activeTab === 'prestamos' && canUsePrestamos && (
+        <PrestamosPage
+          userId={userId}
+          api={api}
+          catalogos={catalogos}
+          onRefreshData={loadAllData}
         />
       )}
     </Layout>
