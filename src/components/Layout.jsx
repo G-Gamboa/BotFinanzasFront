@@ -1,10 +1,7 @@
 import { getPaletteByUser } from "../theme";
 
 export default function Layout({ title, subtitle, actions, children, userLabel, userId }) {
-
   const palette = getPaletteByUser(userId);
-
-  const isLight = palette.bg === "#fff5f8" || palette.bg === "#ffffff";
 
   return (
     <div
@@ -15,61 +12,62 @@ export default function Layout({ title, subtitle, actions, children, userLabel, 
         minHeight: "100vh",
       }}
     >
-      <header
-        className="topbar"
+      <div
         style={{
-          borderBottom: `1px solid ${palette.border}`,
-          background: palette.surface,
+          maxWidth: "1180px",
+          margin: "0 auto",
+          padding: "12px",
         }}
       >
-        <div>
-          <p
-            className="eyebrow"
-            style={{ color: palette.textMuted }}
-          >
-            Bot Finanzas
-          </p>
-
-          <h1 style={{ color: palette.primary }}>
-            {title}
-          </h1>
-
-          {subtitle ? (
+        <header
+          className="topbar"
+          style={{
+            border: `1px solid ${palette.border}`,
+            background: palette.surface,
+            borderRadius: "1.25rem",
+            padding: "1rem 1.1rem",
+          }}
+        >
+          <div>
             <p
-              className="subtitle"
-              style={{ color: palette.textSoft }}
+              className="eyebrow"
+              style={{ color: palette.textMuted }}
             >
-              {subtitle}
+              Bot Finanzas
             </p>
-          ) : null}
-        </div>
 
-        <div className="topbar-meta">
-          {userLabel ? (
-            <span
-              className="user-pill"
-              style={{
-                background: palette.cardSoft,
-                border: `1px solid ${palette.border}`,
-                color: palette.text,
-              }}
-            >
-              {userLabel}
-            </span>
-          ) : null}
+            <h1 style={{ color: palette.primary }}>
+              {title}
+            </h1>
 
-          {actions}
-        </div>
-      </header>
+            {subtitle ? (
+              <p className="subtitle" style={{ color: palette.textSoft }}>
+                {subtitle}
+              </p>
+            ) : null}
+          </div>
 
-      <main
-        className="page-content"
-        style={{
-          padding: "1rem",
-        }}
-      >
-        {children}
-      </main>
+          <div className="topbar-meta">
+            {userLabel ? (
+              <span
+                className="user-pill"
+                style={{
+                  background: palette.cardSoft,
+                  border: `1px solid ${palette.border}`,
+                  color: palette.text,
+                }}
+              >
+                {userLabel}
+              </span>
+            ) : null}
+            {actions}
+          </div>
+        </header>
+
+        <main className="page-content" style={{ padding: "1rem 0 0 0" }}>
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

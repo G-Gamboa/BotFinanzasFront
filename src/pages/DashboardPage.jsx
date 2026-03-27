@@ -38,7 +38,8 @@ export default function DashboardPage({ loading, palette, dashboard, refresh, us
         style={{
           display: "grid",
           gap: "1rem",
-          gridTemplateColumns: "1.2fr 1fr",
+          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+          alignItems: "start",
         }}
       >
         <div style={{ display: "grid", gap: "1rem" }}>
