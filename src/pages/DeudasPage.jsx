@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import Panel from '../components/Panel'
 import EmptyState from '../components/EmptyState'
 import MessageBanner from '../components/MessageBanner'
+import { getDebtPaymentAccounts } from '../lib/accountFilters'
 
 const deudaBase = {
   deuda_nombre: '',
@@ -19,8 +20,10 @@ function q(value) {
 }
 
 export default function DeudasPage({ userId, api, deudas, deudasActivas, catalogos, onRefreshData }) {
+  const cuentasPago = useMemo(() => getDebtPaymentAccounts(catalogos), [catalogos])
+
   const [form, setForm] = useState(deudaBase)
-  const [pago, setPago] = useState({ deuda_row: '', cuenta_pago: catalogos?.CUENTAS?.[0] || '' })
+  const [pago, setPago] = useState({ deuda_row: '', cuenta_pago: cuentasPago[0] || '' })
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -69,7 +72,7 @@ export default function DeudasPage({ userId, api, deudas, deudasActivas, catalog
         cuenta_pago: pago.cuenta_pago,
       })
       setMessage('Pago de deuda registrado.')
-      setPago({ deuda_row: '', cuenta_pago: catalogos?.CUENTAS?.[0] || '' })
+      setPago({ deuda_row: '', cuenta_pago: cuentasPago[0] || '' })
       onRefreshData?.()
     } catch (err) {
       setError(err.message || 'No pude registrar el pago.')
@@ -165,7 +168,7 @@ export default function DeudasPage({ userId, api, deudas, deudasActivas, catalog
           <label>
             <span>Cuenta de pago</span>
             <select value={pago.cuenta_pago} onChange={(e) => setPago((prev) => ({ ...prev, cuenta_pago: e.target.value }))} required>
-              {(catalogos?.CUENTAS || []).map((item) => <option key={item} value={item}>{item}</option>)}
+              {cuentasPago.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>
           <div className="full-span form-actions">

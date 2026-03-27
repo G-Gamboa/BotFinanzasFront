@@ -12,15 +12,14 @@ import { applyTheme } from './theme/applyTheme'
 
 function normalizeUserLabel(user) {
   if (!user) return ''
-  return user.first_name
-    ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}`
-    : `ID ${user.id}`
+  return user.first_name ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}` : `ID ${user.id}`
 }
 
 export default function App() {
   const { isTelegram, isReady, user, userId: tgUserId } = useTelegramMiniApp()
   const [manualUserId, setManualUserId] = useState('1282471582')
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const [activeTab, setActiveTab] = useState('movimientos')
+  const [showAmounts, setShowAmounts] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [health, setHealth] = useState(null)
@@ -66,7 +65,14 @@ export default function App() {
       subtitle={isTelegram ? 'Mini App conectada a tu bot' : 'Modo web para pruebas y desarrollo'}
       userLabel={userLabel}
       userId={userId}
-      actions={<button className="ghost-btn" onClick={loadAllData}>Recargar</button>}
+      actions={
+        <>
+          <button className="ghost-btn" onClick={() => setShowAmounts((v) => !v)}>
+            {showAmounts ? 'Ocultar montos' : 'Mostrar montos'}
+          </button>
+          <button className="ghost-btn" onClick={loadAllData}>Recargar</button>
+        </>
+      }
     >
       {!isTelegram && (
         <section className="panel compact-panel">
@@ -85,17 +91,6 @@ export default function App() {
 
       <NavTabs current={activeTab} onChange={setActiveTab} />
 
-      {activeTab === 'dashboard' && (
-        <DashboardPage
-          loading={loading}
-          palette={palette}
-          dashboard={dashboard}
-          refresh={loadAllData}
-          userId={userId}
-          userLabel={userLabel}
-        />
-      )}
-
       {activeTab === 'movimientos' && (
         <MovimientosPage
           userId={userId}
@@ -113,6 +108,15 @@ export default function App() {
           deudas={dashboard?.deudas || []}
           deudasActivas={dashboard?.deudas_activas || []}
           onRefreshData={loadAllData}
+        />
+      )}
+
+      {activeTab === 'dashboard' && (
+        <DashboardPage
+          loading={loading}
+          palette={palette}
+          dashboard={dashboard}
+          showAmounts={showAmounts}
         />
       )}
     </Layout>

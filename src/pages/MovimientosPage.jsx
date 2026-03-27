@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
+import { getEgresoMethods, getTransferAccounts } from '../lib/accountFilters'
 
 const initialForm = {
   tipo: 'EGR',
@@ -22,26 +23,57 @@ export default function MovimientosPage({ userId, api, catalogos, onRefreshData 
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    setForm((prev) => ({
-      ...prev,
-      metodo: catalogos?.METODOS?.[0] || prev.metodo,
-      categoria: prev.tipo === 'ING' ? (catalogos?.CATEG_ING?.[0] || prev.categoria) : (catalogos?.CATEG_EGR?.[0] || prev.categoria),
-      fuente: catalogos?.FUENTES_ING?.[0] || prev.fuente,
-      banco: catalogos?.BANCOS?.[0] || prev.banco,
-      remitente: catalogos?.CUENTAS?.[0] || prev.remitente,
-      destino: catalogos?.CUENTAS?.[1] || prev.destino,
-    }))
-  }, [catalogos])
-
   const visibleCategories = useMemo(() => {
     if (form.tipo === 'ING') return catalogos?.CATEG_ING || []
     if (form.tipo === 'EGR') return catalogos?.CATEG_EGR || []
     return []
   }, [form.tipo, catalogos])
 
+  const egresoMethods = useMemo(() => getEgresoMethods(), [])
+  const transferAccounts = useMemo(() => getTransferAccounts(catalogos), [catalogos])
+
+  useEffect(() => {
+    setForm((prev) => ({
+      ...prev,
+      metodo:
+        prev.tipo === 'EGR'
+          ? (egresoMethods[0] || '')
+          : (catalogos?.METODOS?.[0] || prev.metodo),
+      categoria:
+        prev.tipo === 'ING'
+          ? (catalogos?.CATEG_ING?.[0] || prev.categoria)
+          : prev.tipo === 'EGR'
+            ? (catalogos?.CATEG_EGR?.[0] || prev.categoria)
+            : prev.categoria,
+      fuente: catalogos?.FUENTES_ING?.[0] || prev.fuente,
+      banco: transferAccounts[0] || '',
+      remitente: catalogos?.CUENTAS?.[0] || prev.remitente,
+      destino: catalogos?.CUENTAS?.[1] || prev.destino,
+    }))
+  }, [catalogos, egresoMethods, transferAccounts])
+
   function updateField(field, value) {
-    setForm((prev) => ({ ...prev, [field]: value }))
+    setForm((prev) => {
+      const next = { ...prev, [field]: value }
+
+      if (field === 'tipo') {
+        if (value === 'EGR') {
+          next.metodo = egresoMethods[0] || ''
+          next.banco = transferAccounts[0] || ''
+          next.categoria = catalogos?.CATEG_EGR?.[0] || ''
+        } else if (value === 'ING') {
+          next.metodo = catalogos?.METODOS?.[0] || ''
+          next.banco = catalogos?.BANCOS?.[0] || ''
+          next.categoria = catalogos?.CATEG_ING?.[0] || ''
+        }
+      }
+
+      if (field === 'metodo' && value !== 'Transferencia') {
+        next.banco = ''
+      }
+
+      return next
+    })
   }
 
   async function submit(e) {
@@ -83,7 +115,13 @@ export default function MovimientosPage({ userId, api, catalogos, onRefreshData 
 
       await api.postMovimiento(payload)
       setMessage('Movimiento guardado correctamente.')
-      setForm((prev) => ({ ...initialForm, tipo: prev.tipo, fecha: new Date().toISOString().slice(0, 10) }))
+      setForm((prev) => ({
+        ...initialForm,
+        tipo: prev.tipo,
+        fecha: new Date().toISOString().slice(0, 10),
+        metodo: prev.tipo === 'EGR' ? (egresoMethods[0] || '') : '',
+        banco: prev.tipo === 'EGR' ? (transferAccounts[0] || '') : '',
+      }))
       onRefreshData?.()
     } catch (err) {
       setError(err.message || 'No pude guardar el movimiento.')
@@ -97,6 +135,7 @@ export default function MovimientosPage({ userId, api, catalogos, onRefreshData 
       <Panel title="Nuevo movimiento">
         {message ? <MessageBanner kind="success">{message}</MessageBanner> : null}
         {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
+
         <form className="form-grid" onSubmit={submit}>
           <label>
             <span>Tipo</span>
@@ -172,7 +211,9 @@ export default function MovimientosPage({ userId, api, catalogos, onRefreshData 
               <label>
                 <span>Método</span>
                 <select value={form.metodo} onChange={(e) => updateField('metodo', e.target.value)}>
-                  {(catalogos?.METODOS || []).map((item) => <option key={item} value={item}>{item}</option>)}
+                  {(form.tipo === 'EGR' ? egresoMethods : (catalogos?.METODOS || [])).map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
                 </select>
               </label>
 
@@ -180,7 +221,7 @@ export default function MovimientosPage({ userId, api, catalogos, onRefreshData 
                 <label>
                   <span>Banco</span>
                   <select value={form.banco} onChange={(e) => updateField('banco', e.target.value)}>
-                    {(catalogos?.BANCOS || []).map((item) => <option key={item} value={item}>{item}</option>)}
+                    {transferAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
                   </select>
                 </label>
               )}

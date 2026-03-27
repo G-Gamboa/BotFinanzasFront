@@ -1,7 +1,7 @@
 const tabs = [
-  { key: 'dashboard', label: 'Dashboard' },
   { key: 'movimientos', label: 'Movimientos' },
   { key: 'deudas', label: 'Deudas' },
+  { key: 'dashboard', label: 'Dashboard' },
 ]
 
 export default function NavTabs({ current, onChange }) {
