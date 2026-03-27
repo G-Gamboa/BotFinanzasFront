@@ -7,12 +7,14 @@ import MovimientosPage from './pages/MovimientosPage'
 import DeudasPage from './pages/DeudasPage'
 import { api } from './api/client'
 import { useTelegramMiniApp } from './hooks/useTelegramMiniApp'
-import { resolvePalette } from './theme/palettes'
+import { getPaletteByUser } from './theme'
 import { applyTheme } from './theme/applyTheme'
 
 function normalizeUserLabel(user) {
   if (!user) return ''
-  return user.first_name ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}` : `ID ${user.id}`
+  return user.first_name
+    ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}`
+    : `ID ${user.id}`
 }
 
 export default function App() {
@@ -23,15 +25,10 @@ export default function App() {
   const [error, setError] = useState('')
   const [health, setHealth] = useState(null)
   const [catalogos, setCatalogos] = useState(null)
-  const [resumen, setResumen] = useState(null)
-  const [saldos, setSaldos] = useState(null)
-  const [networth, setNetworth] = useState(null)
-  const [neto, setNeto] = useState(null)
-  const [deudas, setDeudas] = useState(null)
-  const [deudasActivas, setDeudasActivas] = useState(null)
+  const [dashboard, setDashboard] = useState(null)
 
   const userId = tgUserId || manualUserId
-  const palette = useMemo(() => resolvePalette(userId), [userId])
+  const palette = useMemo(() => getPaletteByUser(userId), [userId])
   const userLabel = tgUserId ? normalizeUserLabel(user) : `Prueba manual · ${manualUserId}`
 
   useEffect(() => {
@@ -43,25 +40,14 @@ export default function App() {
     setLoading(true)
     setError('')
     try {
-      const [healthData, catalogosData, resumenData, saldosData, networthData, netoData, deudasData, activasData] = await Promise.all([
+      const [healthData, dashboardData] = await Promise.all([
         api.getHealth(),
-        api.getCatalogos(userId),
-        api.getResumen(userId),
-        api.getSaldos(userId),
-        api.getNetworth(userId),
-        api.getNeto(userId),
-        api.getDeudas(userId),
-        api.getDeudasActivas(userId),
+        api.getDashboard(userId),
       ])
 
       setHealth(healthData)
-      setCatalogos(catalogosData)
-      setResumen(resumenData)
-      setSaldos(saldosData)
-      setNetworth(networthData)
-      setNeto(netoData)
-      setDeudas(deudasData)
-      setDeudasActivas(activasData)
+      setCatalogos(dashboardData.catalogos || {})
+      setDashboard(dashboardData)
     } catch (err) {
       setError(err.message || 'No pude cargar la información.')
     } finally {
@@ -79,6 +65,7 @@ export default function App() {
       title="Finanzas"
       subtitle={isTelegram ? 'Mini App conectada a tu bot' : 'Modo web para pruebas y desarrollo'}
       userLabel={userLabel}
+      userId={userId}
       actions={<button className="ghost-btn" onClick={loadAllData}>Recargar</button>}
     >
       {!isTelegram && (
@@ -101,11 +88,11 @@ export default function App() {
       {activeTab === 'dashboard' && (
         <DashboardPage
           loading={loading}
-          resumen={resumen}
-          saldos={saldos}
-          networth={networth}
-          neto={neto}
+          palette={palette}
+          dashboard={dashboard}
           refresh={loadAllData}
+          userId={userId}
+          userLabel={userLabel}
         />
       )}
 
@@ -123,8 +110,8 @@ export default function App() {
           userId={userId}
           api={api}
           catalogos={catalogos}
-          deudas={deudas}
-          deudasActivas={deudasActivas}
+          deudas={dashboard?.deudas || []}
+          deudasActivas={dashboard?.deudas_activas || []}
           onRefreshData={loadAllData}
         />
       )}

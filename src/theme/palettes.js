@@ -1,41 +1,72 @@
-export const emeraldRosePalette = {
-  name: 'emeraldRose',
-  bg: '#071b17',
-  bgSoft: '#0b2721',
-  surface: '#0f3d32',
-  surfaceAlt: '#145244',
-  primary: '#10b981',
-  primarySoft: '#6ee7b7',
-  accent: '#f4a7c5',
-  accentSoft: '#f7c9dc',
-  text: '#f7fffc',
-  textMuted: '#b8d0c8',
-  border: '#1d5b4d',
-  danger: '#f87171',
-  warning: '#fbbf24',
-  shadow: '0 12px 40px rgba(0,0,0,.28)'
-}
+export const paletteGreen = {
+  bg: "#061712",
+  surface: "#0b241c",
+  card: "#0f2e24",
+  cardSoft: "#134034",
 
-export const azurePalette = {
-  name: 'azure',
-  bg: '#081522',
-  bgSoft: '#0e1e31',
-  surface: '#10253c',
-  surfaceAlt: '#15314f',
-  primary: '#3b82f6',
-  primarySoft: '#93c5fd',
-  accent: '#67e8f9',
-  accentSoft: '#bae6fd',
-  text: '#f8fbff',
-  textMuted: '#b4c7d9',
-  border: '#224163',
-  danger: '#f87171',
-  warning: '#fbbf24',
-  shadow: '0 12px 40px rgba(0,0,0,.28)'
-}
+  primary: "#10b981",
+  primarySoft: "#34d399",
+  primaryStrong: "#059669",
 
-const premiumUsers = new Set(['1282471582', '5592032215'])
+  accent: "#6ee7b7",
+  accentSoft: "#a7f3d0",
 
-export function resolvePalette(userId) {
-  return premiumUsers.has(String(userId)) ? emeraldRosePalette : azurePalette
-}
+  text: "#ecfdf5",
+  textSoft: "#bbf7d0",
+  textMuted: "#6ee7b7",
+
+  border: "#14532d",
+  borderSoft: "#166534",
+
+  success: "#22c55e",
+  danger: "#ef4444",
+};
+
+export const palettePink = {
+  bg: "#fff5f8",
+  surface: "#ffffff",
+  card: "#ffffff",
+  cardSoft: "#fff8fb",
+
+  primary: "#e91e63",
+  primaryHover: "#d81b60",
+
+  accent: "#b5164f",
+  accentSoft: "#8f123f",
+  accentPale: "#fff0f5",
+
+  border: "#fbc8da",
+  borderSoft: "#fde2eb",
+  borderStrong: "#f7a8c6",
+
+  text: "#8f123f",
+  textStrong: "#b5164f",
+  textLight: "#ffffff",
+
+  shadow: "rgba(233, 30, 99, 0.12)",
+
+  success: "#10b981",
+  danger: "#ef4444",
+};
+
+export const paletteNeutral = {
+  bg: "#0f172a",
+  surface: "#111827",
+  card: "#1f2937",
+  cardSoft: "#374151",
+
+  primary: "#3b82f6",
+  primarySoft: "#60a5fa",
+
+  accent: "#38bdf8",
+  accentSoft: "#7dd3fc",
+
+  text: "#f9fafb",
+  textSoft: "#9ca3af",
+
+  border: "#374151",
+  borderSoft: "#4b5563",
+
+  success: "#22c55e",
+  danger: "#ef4444",
+};
