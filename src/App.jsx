@@ -90,7 +90,6 @@ export default function App() {
       )}
 
       {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
-      {health ? <MessageBanner kind="success">API conectada correctamente.</MessageBanner> : null}
 
       <NavTabs current={activeTab} onChange={setActiveTab} showPrestamos={canUsePrestamos} />
 
