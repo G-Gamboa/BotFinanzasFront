@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import SectionCard from "../components/SectionCard";
 import StatCard from "../components/StatCard";
-import GastosChart from "../components/GastosChart";
+import GastosChart from "../components/GastosCharts";
 import LoadingBlock from "../components/LoadingBlock";
 import EmptyState from "../components/EmptyState";
 
