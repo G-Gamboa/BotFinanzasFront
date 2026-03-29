@@ -360,3 +360,14 @@ body {
     width: 100%;
   }
 }
+
+.field-help {
+  display: block;
+  margin-top: .35rem;
+  color: var(--text-muted);
+  font-size: .84rem;
+}
+
+.debt-detail {
+  align-items: center;
+}

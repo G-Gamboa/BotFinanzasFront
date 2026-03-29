@@ -28,21 +28,12 @@ async function request(path, options = {}) {
 export const api = {
   getHealth: () => request('/health'),
   getCatalogos: (userId) => request(`/catalogos/${userId}`),
-  getResumen: (userId) => request(`/resumen/${userId}`),
-  getResumenSemana: (userId) => request(`/resumen/semana/${userId}`),
+  getDisponibles: (userId) => request(`/disponibles/${userId}`),
   getSaldos: (userId) => request(`/saldos/${userId}`),
   getNetworth: (userId) => request(`/networth/${userId}`),
   getNeto: (userId) => request(`/neto/${userId}`),
   getDeudas: (userId) => request(`/deudas/${userId}`),
-  getDeudasActivas: (userId) => request(`/deudas/activas/${userId}`),
   getDashboard: (userId) => request(`/dashboard/${userId}`),
-
   postMovimiento: (payload) =>
     request('/movimientos', { method: 'POST', body: JSON.stringify(payload) }),
-
-  postDeuda: (payload) =>
-    request('/deudas', { method: 'POST', body: JSON.stringify(payload) }),
-
-  postPagarDeuda: (payload) =>
-    request('/deudas/pagar', { method: 'POST', body: JSON.stringify(payload) }),
 }

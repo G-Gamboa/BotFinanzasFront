@@ -11,7 +11,6 @@ import { useTelegramMiniApp } from './hooks/useTelegramMiniApp'
 import { getPaletteByUser } from './theme'
 import { applyTheme } from './theme/applyTheme'
 
-
 function normalizeUserLabel(user) {
   if (!user) return ''
   return user.first_name ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}` : `ID ${user.id}`
@@ -27,12 +26,13 @@ export default function App() {
   const [health, setHealth] = useState(null)
   const [catalogos, setCatalogos] = useState(null)
   const [dashboard, setDashboard] = useState(null)
+  const [disponibles, setDisponibles] = useState(null)
+  const [deudas, setDeudas] = useState(null)
 
   const userId = tgUserId || manualUserId
   const palette = useMemo(() => getPaletteByUser(userId), [userId])
   const userLabel = tgUserId ? normalizeUserLabel(user) : `Prueba manual · ${manualUserId}`
-
-  const canUsePrestamos = String(userId) === "1282471582";
+  const canUsePrestamos = Boolean(catalogos?.user?.can_use_loans)
 
   useEffect(() => {
     applyTheme(palette)
@@ -43,14 +43,19 @@ export default function App() {
     setLoading(true)
     setError('')
     try {
-      const [healthData, dashboardData] = await Promise.all([
+      const [healthData, catalogosData, dashboardData, disponiblesData, deudasData] = await Promise.all([
         api.getHealth(),
+        api.getCatalogos(userId),
         api.getDashboard(userId),
+        api.getDisponibles(userId),
+        api.getDeudas(userId),
       ])
 
       setHealth(healthData)
-      setCatalogos(dashboardData.catalogos || {})
+      setCatalogos(catalogosData)
       setDashboard(dashboardData)
+      setDisponibles(disponiblesData)
+      setDeudas(deudasData)
     } catch (err) {
       setError(err.message || 'No pude cargar la información.')
     } finally {
@@ -66,7 +71,7 @@ export default function App() {
   return (
     <Layout
       title="Gestor Finanzas"
-      subtitle={isTelegram ? 'Desarrollado Por G&G' : 'Modo web para pruebas y desarrollo'}
+      subtitle={isTelegram ? 'Desarrollado por G&G' : 'Modo web para pruebas y desarrollo'}
       userLabel={userLabel}
       userId={userId}
       actions={
@@ -77,7 +82,7 @@ export default function App() {
         </>
       }
     >
-        {!isTelegram && (
+      {!isTelegram && (
         <section className="panel compact-panel">
           <div className="manual-user-row">
             <label>
@@ -90,6 +95,7 @@ export default function App() {
       )}
 
       {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
+      {health?.ok ? null : <MessageBanner kind="error">La API no respondió correctamente.</MessageBanner>}
 
       <NavTabs current={activeTab} onChange={setActiveTab} showPrestamos={canUsePrestamos} />
 
@@ -98,6 +104,7 @@ export default function App() {
           userId={userId}
           api={api}
           catalogos={catalogos}
+          disponibles={disponibles}
           onRefreshData={loadAllData}
         />
       )}
@@ -107,8 +114,8 @@ export default function App() {
           userId={userId}
           api={api}
           catalogos={catalogos}
-          deudas={dashboard?.deudas || []}
-          deudasActivas={dashboard?.deudas_activas || []}
+          disponibles={disponibles}
+          deudas={deudas}
           onRefreshData={loadAllData}
         />
       )}
@@ -127,6 +134,7 @@ export default function App() {
           userId={userId}
           api={api}
           catalogos={catalogos}
+          disponibles={disponibles}
           onRefreshData={loadAllData}
         />
       )}
