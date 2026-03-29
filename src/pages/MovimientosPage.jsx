@@ -36,6 +36,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
   const [error, setError] = useState('')
 
   const liquidAccounts = useMemo(() => getLiquidAccounts(catalogos), [catalogos])
+  const transferAccounts = useMemo(() => liquidAccounts.filter((item) => item.name !== 'Efectivo'), [liquidAccounts])
   const investmentAccounts = useMemo(() => getInvestmentAccounts(catalogos), [catalogos])
   const ingCategories = useMemo(() => getIngCategories(catalogos), [catalogos])
   const egrCategories = useMemo(() => getEgrCategories(catalogos), [catalogos])
@@ -49,11 +50,11 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
       category_name: prev.entryType === 'ING'
         ? (prev.category_name || ingCategories[0]?.name || '')
         : (prev.entryType === 'EGR' ? (prev.category_name || egrCategories[0]?.name || '') : ''),
-      account_name: prev.account_name || liquidAccounts[0]?.name || '',
+      account_name: prev.account_name || (prev.payment_method === 'Transferencia' ? (transferAccounts[0]?.name || '') : 'Efectivo'),
       source_account_name: prev.source_account_name || liquidAccounts[0]?.name || '',
       target_account_name: prev.target_account_name || liquidAccounts[1]?.name || liquidAccounts[0]?.name || '',
     }))
-  }, [catalogos, ingCategories, egrCategories, liquidAccounts])
+  }, [catalogos, ingCategories, egrCategories, liquidAccounts, transferAccounts])
 
   function update(field, value) {
     setForm((prev) => {
@@ -65,18 +66,24 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
         next.note = ''
         if (value === 'ING') {
           next.category_name = ingCategories[0]?.name || ''
-          next.account_name = liquidAccounts[0]?.name || ''
           next.payment_method = 'Efectivo'
+          next.account_name = 'Efectivo'
         } else if (value === 'EGR') {
           next.category_name = egrCategories[0]?.name || ''
-          next.account_name = liquidAccounts[0]?.name || ''
           next.payment_method = 'Efectivo'
+          next.account_name = 'Efectivo'
         } else {
           next.movSubtype = 'NORMAL'
           next.movDirection = 'NORMAL'
           next.source_account_name = liquidAccounts[0]?.name || ''
           next.target_account_name = liquidAccounts[1]?.name || liquidAccounts[0]?.name || ''
         }
+      }
+
+      if (field === 'payment_method') {
+        next.account_name = value === 'Transferencia'
+          ? (transferAccounts[0]?.name || '')
+          : 'Efectivo'
       }
 
       if (field === 'movSubtype') {
@@ -278,15 +285,17 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
                 </select>
               </label>
 
-              <label>
-                <span>Cuenta</span>
-                <select value={form.account_name} onChange={(e) => update('account_name', e.target.value)} required>
-                  <option value="">Selecciona</option>
-                  {liquidAccounts.map((item) => (
-                    <option key={item.id} value={item.name}>{item.name}</option>
-                  ))}
-                </select>
-              </label>
+              {form.payment_method === 'Transferencia' && (
+                <label>
+                  <span>Cuenta</span>
+                  <select value={form.account_name} onChange={(e) => update('account_name', e.target.value)} required>
+                    <option value="">Selecciona</option>
+                    {transferAccounts.map((item) => (
+                      <option key={item.id} value={item.name}>{item.name}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </>
           )}
 
