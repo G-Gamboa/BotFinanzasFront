@@ -36,4 +36,8 @@ export const api = {
   getDashboard: (userId) => request(`/dashboard/${userId}`),
   postMovimiento: (payload) =>
     request('/movimientos', { method: 'POST', body: JSON.stringify(payload) }),
+  postDeuda: (payload) =>
+    request('/deudas', { method: 'POST', body: JSON.stringify(payload) }),
+  postPagarDeuda: (payload) =>
+    request('/deudas/pagar', { method: 'POST', body: JSON.stringify(payload) }),
 }
