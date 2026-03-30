@@ -24,16 +24,15 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [health, setHealth] = useState(null)
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [catalogos, setCatalogos] = useState(null)
-  const [dashboard, setDashboard] = useState(null)
   const [disponibles, setDisponibles] = useState(null)
+  const [dashboard, setDashboard] = useState(null)
   const [deudas, setDeudas] = useState(null)
 
   const userId = tgUserId || manualUserId
   const palette = useMemo(() => getPaletteByUser(userId), [userId])
   const userLabel = tgUserId ? normalizeUserLabel(user) : `Prueba manual · ${manualUserId}`
-  const canUsePrestamos = Boolean(catalogos?.user?.can_use_loans)
+  const canUsePrestamos = String(userId) === '1282471582'
 
   useEffect(() => {
     applyTheme(palette)
@@ -44,23 +43,21 @@ export default function App() {
     setLoading(true)
     setError('')
     try {
-      const [healthData, catalogosData, dashboardData, disponiblesData, deudasData] = await Promise.all([
+      const [healthData, catalogosData, disponiblesData, dashboardData, deudasData] = await Promise.all([
         api.getHealth(),
         api.getCatalogos(userId),
-        api.getDashboard(userId),
         api.getDisponibles(userId),
+        api.getDashboard(userId),
         api.getDeudas(userId),
       ])
 
       setHealth(healthData)
       setCatalogos(catalogosData)
-      setDashboard(dashboardData)
       setDisponibles(disponiblesData)
+      setDashboard(dashboardData)
       setDeudas(deudasData)
-      setHasLoadedOnce(true)
     } catch (err) {
       setError(err.message || 'No pude cargar la información.')
-      setHasLoadedOnce(true)
     } finally {
       setLoading(false)
     }
@@ -71,18 +68,21 @@ export default function App() {
     loadAllData()
   }, [isReady, userId])
 
+  const deudasActivas = useMemo(() => {
+    const items = deudas?.items || []
+    return items.filter((item) => (item.status || '').toLowerCase() === 'active' && Number(item.pending_installments || 0) > 0)
+  }, [deudas])
+
   return (
     <Layout
       title="Gestor Finanzas"
-      subtitle={isTelegram ? 'Desarrollado por G&G' : 'Modo web para pruebas y desarrollo'}
+      subtitle={isTelegram ? 'Desarrollado Por G&G' : 'Modo web para pruebas y desarrollo'}
       userLabel={userLabel}
       userId={userId}
       actions={
-        <>
-          <button className="ghost-btn" onClick={() => setShowAmounts((v) => !v)}>
-            {showAmounts ? 'Ocultar montos' : 'Mostrar montos'}
-          </button>
-        </>
+        <button className="ghost-btn" onClick={() => setShowAmounts((v) => !v)}>
+          {showAmounts ? 'Ocultar montos' : 'Mostrar montos'}
+        </button>
       }
     >
       {!isTelegram && (
@@ -98,7 +98,7 @@ export default function App() {
       )}
 
       {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
-      {hasLoadedOnce && health && health.ok === false ? <MessageBanner kind="error">La API no respondió correctamente.</MessageBanner> : null}
+      {health && health.ok === false ? <MessageBanner kind="error">La API no respondió correctamente.</MessageBanner> : null}
 
       <NavTabs current={activeTab} onChange={setActiveTab} showPrestamos={canUsePrestamos} />
 
@@ -119,17 +119,13 @@ export default function App() {
           catalogos={catalogos}
           disponibles={disponibles}
           deudas={deudas}
+          deudasActivas={deudasActivas}
           onRefreshData={loadAllData}
         />
       )}
 
       {activeTab === 'dashboard' && (
-        <DashboardPage
-          loading={loading}
-          palette={palette}
-          dashboard={dashboard}
-          showAmounts={showAmounts}
-        />
+        <DashboardPage loading={loading} palette={palette} dashboard={dashboard} showAmounts={showAmounts} />
       )}
 
       {activeTab === 'prestamos' && canUsePrestamos && (
