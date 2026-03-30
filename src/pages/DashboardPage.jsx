@@ -34,16 +34,29 @@ export default function DashboardPage({ loading, palette, dashboard, showAmounts
 
       <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', alignItems: 'start' }}>
         <div style={{ display: 'grid', gap: '1rem' }}>
-          <SectionCard palette={palette} title="Liquidez por cuenta">
-            <div style={{ display: 'grid', gap: '0.7rem' }}>
-              {Object.entries(liquidMap).map(([cuenta, saldo]) => (
-                <div key={cuenta} style={rowBox(palette)}>
-                  <span style={{ color: palette.text, fontWeight: 700 }}>{cuenta}</span>
-                  <span style={{ color: palette.primary, fontWeight: 800 }}>{moneyVisible(saldo, showAmounts)}</span>
-                </div>
-              ))}
-            </div>
-          </SectionCard>
+<SectionCard palette={palette} title="Liquidez">
+  <div style={{ display: "grid", gap: "0.7rem" }}>
+    {Object.entries(dashboard?.networth?.liquid_map || {}).map(([cuenta, saldo]) => (
+      <div
+        key={cuenta}
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "0.85rem 1rem",
+          borderRadius: "1rem",
+          border: `1px solid ${palette.borderSoft || palette.border}`,
+          background: palette.cardSoft,
+        }}
+      >
+        <span style={{ color: palette.text, fontWeight: 700 }}>{cuenta}</span>
+        <span style={{ color: palette.primary, fontWeight: 800 }}>
+          {money(saldo, showAmounts)}
+        </span>
+      </div>
+    ))}
+  </div>
+</SectionCard>
 
           <SectionCard palette={palette} title="Ahorro por cuenta" accent>
             {(dashboard?.networth?.ahorro_por_cuenta || []).length === 0 ? (

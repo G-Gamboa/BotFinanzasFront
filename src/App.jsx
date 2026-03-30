@@ -98,7 +98,9 @@ export default function App() {
       )}
 
       {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
-      {hasLoadedOnce && health && health.ok === false ? <MessageBanner kind="error">La API no respondió correctamente.</MessageBanner> : null}
+      {!loading && health && health.ok === false ? (
+  <MessageBanner kind="error">La API no respondió correctamente.</MessageBanner>
+) : null}
 
       <NavTabs current={activeTab} onChange={setActiveTab} showPrestamos={canUsePrestamos} />
 
