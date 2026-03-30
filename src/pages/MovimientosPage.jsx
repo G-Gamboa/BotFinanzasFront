@@ -2,16 +2,20 @@ import { useEffect, useMemo, useState } from 'react'
 import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
 
+function todayLocal() {
+  const d = new Date()
+  const off = d.getTimezoneOffset()
+  return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10)
+}
+
 const initialForm = {
   movementType: 'EGR',
-  movementDate: new Date().toISOString().slice(0, 10),
+  movementDate: todayLocal(),
   amount: '',
   note: '',
-
   categoryName: '',
   paymentMethod: 'Efectivo',
   accountName: 'Efectivo',
-
   movSubtype: 'NORMAL',
   movDirection: 'NORMAL',
   sourceAccountName: '',
@@ -26,45 +30,14 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
-  const liquidAccounts = useMemo(
-    () => (catalogos?.accounts?.liquid || []).map((a) => a.name),
-    [catalogos]
-  )
-
-  const investmentAccounts = useMemo(
-    () => (catalogos?.accounts?.investment || []).map((a) => a.name),
-    [catalogos]
-  )
-
-  const ingCategories = useMemo(
-    () => (catalogos?.categories?.ing || []).map((c) => c.name),
-    [catalogos]
-  )
-
-  const egrCategories = useMemo(
-    () => (catalogos?.categories?.egr || []).map((c) => c.name),
-    [catalogos]
-  )
-
-  const loanPeople = useMemo(
-    () => (catalogos?.loan_people || []).map((p) => p.name),
-    [catalogos]
-  )
-
-  const transferAccounts = useMemo(
-    () => liquidAccounts.filter((name) => name !== 'Efectivo'),
-    [liquidAccounts]
-  )
-
-  const ahorroDisponibles = useMemo(
-    () => disponibles?.ahorro_por_cuenta || [],
-    [disponibles]
-  )
-
-  const prestamosDisponibles = useMemo(
-    () => disponibles?.prestamos_por_persona || [],
-    [disponibles]
-  )
+  const liquidAccounts = useMemo(() => (catalogos?.accounts?.liquid || []).map((a) => a.name), [catalogos])
+  const investmentAccounts = useMemo(() => (catalogos?.accounts?.investment || []).map((a) => a.name), [catalogos])
+  const ingCategories = useMemo(() => (catalogos?.categories?.ing || []).map((c) => c.name), [catalogos])
+  const egrCategories = useMemo(() => (catalogos?.categories?.egr || []).map((c) => c.name), [catalogos])
+  const loanPeople = useMemo(() => (catalogos?.loan_people || []).map((p) => p.name), [catalogos])
+  const transferAccounts = useMemo(() => liquidAccounts.filter((name) => name !== 'Efectivo'), [liquidAccounts])
+  const ahorroDisponibles = useMemo(() => disponibles?.ahorro_por_cuenta || [], [disponibles])
+  const prestamosDisponibles = useMemo(() => disponibles?.prestamos_por_persona || [], [disponibles])
 
   useEffect(() => {
     setForm((prev) => ({
@@ -77,10 +50,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
             : '',
       sourceAccountName: prev.sourceAccountName || liquidAccounts[0] || '',
       targetAccountName: prev.targetAccountName || liquidAccounts[1] || liquidAccounts[0] || '',
-      accountName:
-        prev.paymentMethod === 'Transferencia'
-          ? (transferAccounts[0] || '')
-          : 'Efectivo',
+      accountName: prev.paymentMethod === 'Transferencia' ? (transferAccounts[0] || '') : 'Efectivo',
       loanPersonName: prev.loanPersonName || loanPeople[0] || '',
     }))
   }, [ingCategories, egrCategories, liquidAccounts, transferAccounts, loanPeople])
@@ -98,7 +68,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
           next.categoryName = egrCategories[0] || ''
           next.paymentMethod = 'Efectivo'
           next.accountName = 'Efectivo'
-        } else if (value === 'MOV') {
+        } else {
           next.categoryName = ''
         }
       }
@@ -110,11 +80,13 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
       if (field === 'movSubtype') {
         if (value === 'NORMAL') {
           next.movDirection = 'NORMAL'
+          next.sourceAccountName = liquidAccounts[0] || ''
+          next.targetAccountName = liquidAccounts[1] || liquidAccounts[0] || ''
         }
         if (value === 'AHORRO') {
           next.movDirection = 'GUARDAR'
-          next.targetAccountName = ''
           next.sourceAccountName = liquidAccounts[0] || ''
+          next.targetAccountName = ahorroDisponibles[0]?.cuenta || ''
         }
         if (value === 'INVERSION') {
           next.movDirection = 'INVERTIR'
@@ -124,7 +96,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
         if (value === 'PRESTAMO') {
           next.movDirection = 'DAR'
           next.sourceAccountName = liquidAccounts[0] || ''
-          next.targetAccountName = ''
+          next.targetAccountName = liquidAccounts[0] || ''
           next.loanPersonName = loanPeople[0] || ''
         }
       }
@@ -150,6 +122,9 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
     setError('')
 
     try {
+      const amount = Number(form.amount)
+      if (!amount || amount <= 0) throw new Error('Ingresa un monto válido.')
+
       let payload = null
 
       if (form.movementType === 'ING' || form.movementType === 'EGR') {
@@ -157,7 +132,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
           telegram_user_id: Number(userId),
           movement_type: form.movementType,
           movement_date: form.movementDate,
-          amount: Number(form.amount),
+          amount,
           note: form.note || null,
           category_name: form.categoryName,
           payment_method: form.paymentMethod,
@@ -170,12 +145,15 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
           telegram_user_id: Number(userId),
           movement_type: 'MOV',
           movement_date: form.movementDate,
-          amount: Number(form.amount),
+          amount,
           note: form.note || null,
           mov_subtype: form.movSubtype,
           mov_direction: form.movDirection,
-          destination_amount:
-            form.destinationAmount === '' ? undefined : Number(form.destinationAmount),
+        }
+
+        const parsedDestinationAmount = form.destinationAmount === '' ? undefined : Number(form.destinationAmount)
+        if (parsedDestinationAmount !== undefined && !Number.isNaN(parsedDestinationAmount)) {
+          payload.destination_amount = parsedDestinationAmount
         }
 
         if (form.movSubtype === 'NORMAL') {
@@ -187,18 +165,15 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
           if (form.movDirection === 'GUARDAR') {
             payload.source_account_name = form.sourceAccountName
           } else {
+            const disponible = getAhorroDisponible(form.targetAccountName)
+            if (amount > disponible) throw new Error(`No puedes retirar más de Q ${disponible.toFixed(2)} desde ahorro hacia ${form.targetAccountName}.`)
             payload.target_account_name = form.targetAccountName
           }
         }
 
         if (form.movSubtype === 'INVERSION') {
-          if (form.movDirection === 'INVERTIR') {
-            payload.source_account_name = form.sourceAccountName
-            payload.target_account_name = form.targetAccountName
-          } else {
-            payload.source_account_name = form.sourceAccountName
-            payload.target_account_name = form.targetAccountName
-          }
+          payload.source_account_name = form.sourceAccountName
+          payload.target_account_name = form.targetAccountName
         }
 
         if (form.movSubtype === 'PRESTAMO') {
@@ -206,18 +181,19 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
           if (form.movDirection === 'DAR') {
             payload.source_account_name = form.sourceAccountName
           } else {
+            const disponible = getPrestamoDisponible(form.loanPersonName)
+            if (amount > disponible) throw new Error(`No puedes cobrar más de Q ${disponible.toFixed(2)} a ${form.loanPersonName}.`)
             payload.target_account_name = form.targetAccountName
           }
         }
       }
 
       await api.postMovimiento(payload)
-
       setMessage('Movimiento guardado correctamente.')
       setForm((prev) => ({
         ...initialForm,
         movementType: prev.movementType,
-        movementDate: new Date().toISOString().slice(0, 10),
+        movementDate: todayLocal(),
         categoryName:
           prev.movementType === 'ING'
             ? (ingCategories[0] || '')
@@ -229,7 +205,6 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
         accountName: 'Efectivo',
         loanPersonName: loanPeople[0] || '',
       }))
-
       onRefreshData?.()
     } catch (err) {
       setError(err.message || 'No pude guardar el movimiento.')
@@ -256,12 +231,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
 
           <label>
             <span>Fecha</span>
-            <input
-              type="date"
-              value={form.movementDate}
-              onChange={(e) => updateField('movementDate', e.target.value)}
-              required
-            />
+            <input type="date" value={form.movementDate} onChange={(e) => updateField('movementDate', e.target.value)} required />
           </label>
 
           {(form.movementType === 'ING' || form.movementType === 'EGR') && (
@@ -404,13 +374,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
 
                   <label>
                     <span>Monto destino</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.destinationAmount}
-                      onChange={(e) => updateField('destinationAmount', e.target.value)}
-                    />
+                    <input type="number" min="0" step="0.01" value={form.destinationAmount} onChange={(e) => updateField('destinationAmount', e.target.value)} />
                   </label>
                 </>
               )}
@@ -460,14 +424,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
 
           <label>
             <span>Monto</span>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={form.amount}
-              onChange={(e) => updateField('amount', e.target.value)}
-              required
-            />
+            <input type="number" min="0.01" step="0.01" value={form.amount} onChange={(e) => updateField('amount', e.target.value)} required />
           </label>
 
           {form.movementType === 'MOV' && form.movSubtype === 'AHORRO' && form.movDirection === 'RETIRAR' && form.targetAccountName ? (
@@ -478,12 +435,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
 
           <label className="full-span">
             <span>Nota</span>
-            <input
-              type="text"
-              value={form.note}
-              onChange={(e) => updateField('note', e.target.value)}
-              placeholder="Opcional"
-            />
+            <input type="text" value={form.note} onChange={(e) => updateField('note', e.target.value)} placeholder="Opcional" />
           </label>
 
           <div className="full-span form-actions">
