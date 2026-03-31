@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
 import EmptyState from '../components/EmptyState'
@@ -17,27 +17,11 @@ const initialCategoryForm = {
   sortOrder: 0,
 }
 
-function CompactItemButton({ title, subtitle, active, status, onClick }) {
-  return (
-    <button
-      type="button"
-      className={`compact-item-btn${active ? ' active' : ''}`}
-      onClick={onClick}
-    >
-      <div className="compact-item-main">
-        <div className="compact-item-title">{title}</div>
-        {subtitle ? <div className="compact-item-subtitle">{subtitle}</div> : null}
-      </div>
-      <span className={`status-chip ${status === 'Activa' ? 'active' : 'inactive'}`}>{status}</span>
-    </button>
-  )
-}
-
 export default function ConfiguracionPage({ userId, api, cuentas, categorias, loading, onRefreshData }) {
   const [accountForm, setAccountForm] = useState(initialAccountForm)
   const [categoryForm, setCategoryForm] = useState(initialCategoryForm)
-  const [editingAccountId, setEditingAccountId] = useState(null)
-  const [editingCategoryId, setEditingCategoryId] = useState(null)
+  const [selectedAccountId, setSelectedAccountId] = useState('')
+  const [selectedCategoryId, setSelectedCategoryId] = useState('')
   const [savingAccount, setSavingAccount] = useState(false)
   const [savingCategory, setSavingCategory] = useState(false)
   const [message, setMessage] = useState('')
@@ -51,34 +35,49 @@ export default function ConfiguracionPage({ userId, api, cuentas, categorias, lo
     [categoriasItems, categoryFilter]
   )
 
+  const selectedAccount = useMemo(
+    () => cuentasItems.find((item) => String(item.id) === String(selectedAccountId)) || null,
+    [cuentasItems, selectedAccountId]
+  )
+
+  const selectedCategory = useMemo(
+    () => filteredCategorias.find((item) => String(item.id) === String(selectedCategoryId)) || null,
+    [filteredCategorias, selectedCategoryId]
+  )
+
+  useEffect(() => {
+    if (!selectedAccount) {
+      setAccountForm(initialAccountForm)
+      return
+    }
+    setAccountForm({
+      name: selectedAccount.name,
+      accountType: selectedAccount.account_type,
+      currency: selectedAccount.currency,
+      sortOrder: selectedAccount.sort_order,
+    })
+  }, [selectedAccount])
+
+  useEffect(() => {
+    if (!selectedCategory) {
+      setCategoryForm((prev) => ({ ...initialCategoryForm, kind: categoryFilter }))
+      return
+    }
+    setCategoryForm({
+      name: selectedCategory.name,
+      kind: selectedCategory.kind,
+      sortOrder: selectedCategory.sort_order,
+    })
+  }, [selectedCategory, categoryFilter])
+
   function resetAccountForm() {
+    setSelectedAccountId('')
     setAccountForm(initialAccountForm)
-    setEditingAccountId(null)
   }
 
   function resetCategoryForm(kindOverride = null) {
+    setSelectedCategoryId('')
     setCategoryForm({ ...initialCategoryForm, kind: kindOverride || categoryFilter })
-    setEditingCategoryId(null)
-  }
-
-  function startEditAccount(item) {
-    setEditingAccountId(item.id)
-    setAccountForm({
-      name: item.name,
-      accountType: item.account_type,
-      currency: item.currency,
-      sortOrder: item.sort_order,
-    })
-  }
-
-  function startEditCategory(item) {
-    setEditingCategoryId(item.id)
-    setCategoryFilter(item.kind)
-    setCategoryForm({
-      name: item.name,
-      kind: item.kind,
-      sortOrder: item.sort_order,
-    })
   }
 
   async function submitAccount(e) {
@@ -95,8 +94,8 @@ export default function ConfiguracionPage({ userId, api, cuentas, categorias, lo
         sort_order: Number(accountForm.sortOrder || 0),
       }
 
-      if (editingAccountId) {
-        await api.patchCuenta(editingAccountId, payload)
+      if (selectedAccountId) {
+        await api.patchCuenta(selectedAccountId, payload)
         setMessage('Cuenta actualizada correctamente.')
       } else {
         await api.postCuenta(payload)
@@ -125,8 +124,8 @@ export default function ConfiguracionPage({ userId, api, cuentas, categorias, lo
         sort_order: Number(categoryForm.sortOrder || 0),
       }
 
-      if (editingCategoryId) {
-        await api.patchCategoria(editingCategoryId, payload)
+      if (selectedCategoryId) {
+        await api.patchCategoria(selectedCategoryId, payload)
         setMessage('Categoría actualizada correctamente.')
       } else {
         await api.postCategoria(payload)
@@ -142,36 +141,38 @@ export default function ConfiguracionPage({ userId, api, cuentas, categorias, lo
     }
   }
 
-  async function toggleCuenta(item) {
+  async function toggleCuenta() {
+    if (!selectedAccount) return
     setMessage('')
     setError('')
     try {
-      if (item.is_active) {
-        await api.desactivarCuenta(item.id, userId)
+      if (selectedAccount.is_active) {
+        await api.desactivarCuenta(selectedAccount.id, userId)
         setMessage('Cuenta desactivada correctamente.')
       } else {
-        await api.activarCuenta(item.id, userId)
+        await api.activarCuenta(selectedAccount.id, userId)
         setMessage('Cuenta activada correctamente.')
       }
-      if (editingAccountId === item.id) resetAccountForm()
+      resetAccountForm()
       onRefreshData?.()
     } catch (err) {
       setError(err.message || 'No pude cambiar el estado de la cuenta.')
     }
   }
 
-  async function toggleCategoria(item) {
+  async function toggleCategoria() {
+    if (!selectedCategory) return
     setMessage('')
     setError('')
     try {
-      if (item.is_active) {
-        await api.desactivarCategoria(item.id, userId)
+      if (selectedCategory.is_active) {
+        await api.desactivarCategoria(selectedCategory.id, userId)
         setMessage('Categoría desactivada correctamente.')
       } else {
-        await api.activarCategoria(item.id, userId)
+        await api.activarCategoria(selectedCategory.id, userId)
         setMessage('Categoría activada correctamente.')
       }
-      if (editingCategoryId === item.id) resetCategoryForm(item.kind)
+      resetCategoryForm(categoryFilter)
       onRefreshData?.()
     } catch (err) {
       setError(err.message || 'No pude cambiar el estado de la categoría.')
@@ -183,198 +184,157 @@ export default function ConfiguracionPage({ userId, api, cuentas, categorias, lo
   }
 
   return (
-    <div className="grid-page single-col">
+    <div className="grid-page two-col config-page-grid">
       {message ? <MessageBanner kind="success">{message}</MessageBanner> : null}
       {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
 
-      <div className="config-compact-grid">
-        <Panel title="Cuentas">
-          <div className="config-toolbar">
-            <div className="config-toolbar-title">Selecciona una cuenta para editarla</div>
-            <button className="ghost-btn" type="button" onClick={resetAccountForm}>
-              Nueva cuenta
-            </button>
-          </div>
-
-          {cuentasItems.length === 0 ? (
-            <EmptyState text="No hay cuentas disponibles." />
-          ) : (
-            <div className="compact-list">
+      <Panel title="Cuentas">
+        <div className="config-select-row">
+          <label className="full-span">
+            <span>Cuenta</span>
+            <select value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)}>
+              <option value="">Nueva cuenta</option>
               {cuentasItems.map((item) => (
-                <CompactItemButton
-                  key={item.id}
-                  title={item.name}
-                  subtitle={`${item.account_type} · ${item.currency}`}
-                  status={item.is_active ? 'Activa' : 'Inactiva'}
-                  active={editingAccountId === item.id}
-                  onClick={() => startEditAccount(item)}
-                />
+                <option key={item.id} value={item.id}>
+                  {item.name} · {item.account_type} · {item.is_active ? 'Activa' : 'Inactiva'}
+                </option>
               ))}
-            </div>
-          )}
+            </select>
+          </label>
+        </div>
 
-          <form className="form-grid config-form-block" onSubmit={submitAccount}>
-            <label>
-              <span>Nombre</span>
-              <input value={accountForm.name} onChange={(e) => setAccountForm((prev) => ({ ...prev, name: e.target.value }))} required />
-            </label>
+        {cuentasItems.length === 0 ? <EmptyState text="No hay cuentas disponibles." /> : null}
 
-            <label>
-              <span>Tipo</span>
-              <select value={accountForm.accountType} onChange={(e) => setAccountForm((prev) => ({ ...prev, accountType: e.target.value }))}>
-                <option value="cash">Efectivo</option>
-                <option value="bank">Banco</option>
-                <option value="investment">Inversión</option>
-                <option value="asset">Patrimonial</option>
-              </select>
-            </label>
+        {selectedAccount ? (
+          <div className="selected-meta-row">
+            <span className={`status-chip ${selectedAccount.is_active ? 'active' : 'inactive'}`}>
+              {selectedAccount.is_active ? 'Activa' : 'Inactiva'}
+            </span>
+            <span className="mini-chip">{selectedAccount.account_type}</span>
+            <span className="mini-chip">{selectedAccount.currency}</span>
+          </div>
+        ) : null}
 
-            <label>
-              <span>Moneda</span>
-              <select value={accountForm.currency} onChange={(e) => setAccountForm((prev) => ({ ...prev, currency: e.target.value }))}>
-                <option value="GTQ">GTQ</option>
-                <option value="USD">USD</option>
-              </select>
-            </label>
+        <form className="form-grid config-form-block" onSubmit={submitAccount}>
+          <label>
+            <span>Nombre</span>
+            <input value={accountForm.name} onChange={(e) => setAccountForm((prev) => ({ ...prev, name: e.target.value }))} required />
+          </label>
 
-            <label>
-              <span>Orden</span>
-              <input type="number" value={accountForm.sortOrder} onChange={(e) => setAccountForm((prev) => ({ ...prev, sortOrder: e.target.value }))} />
-            </label>
+          <label>
+            <span>Tipo</span>
+            <select value={accountForm.accountType} onChange={(e) => setAccountForm((prev) => ({ ...prev, accountType: e.target.value }))}>
+              <option value="cash">Efectivo</option>
+              <option value="bank">Banco</option>
+              <option value="investment">Inversión</option>
+              <option value="asset">Patrimonial</option>
+            </select>
+          </label>
 
-            {editingAccountId ? (
-              <div className="full-span config-inline-actions">
-                <button className="primary-btn" type="submit" disabled={savingAccount}>
-                  {savingAccount ? 'Guardando...' : 'Actualizar cuenta'}
-                </button>
-                <button className="ghost-btn" type="button" onClick={resetAccountForm}>
-                  Cancelar
-                </button>
-                {(() => {
-                  const item = cuentasItems.find((x) => x.id === editingAccountId)
-                  if (!item) return null
-                  return (
-                    <button
-                      className="ghost-btn"
-                      type="button"
-                      onClick={() => toggleCuenta(item)}
-                      disabled={item.is_system && item.is_active}
-                      title={item.is_system && item.is_active ? 'No se puede cambiar el estado de esta cuenta.' : ''}
-                    >
-                      {item.is_active ? 'Desactivar' : 'Activar'}
-                    </button>
-                  )
-                })()}
-              </div>
-            ) : (
-              <div className="full-span form-actions">
-                <button className="primary-btn" type="submit" disabled={savingAccount}>
-                  {savingAccount ? 'Guardando...' : 'Crear cuenta'}
-                </button>
-              </div>
-            )}
-          </form>
-        </Panel>
+          <label>
+            <span>Moneda</span>
+            <select value={accountForm.currency} onChange={(e) => setAccountForm((prev) => ({ ...prev, currency: e.target.value }))}>
+              <option value="GTQ">GTQ</option>
+              <option value="USD">USD</option>
+            </select>
+          </label>
 
-        <Panel title="Categorías">
-          <div className="config-toolbar">
-            <div className="segmented-tabs">
+          <label>
+            <span>Orden</span>
+            <input type="number" value={accountForm.sortOrder} onChange={(e) => setAccountForm((prev) => ({ ...prev, sortOrder: e.target.value }))} />
+          </label>
+
+          <div className="full-span form-actions split-actions">
+            <button className="ghost-btn" type="button" onClick={resetAccountForm}>Nueva</button>
+            {selectedAccount ? (
               <button
+                className="ghost-btn"
                 type="button"
-                className={categoryFilter === 'ING' ? 'segmented-tab active' : 'segmented-tab'}
-                onClick={() => {
-                  setCategoryFilter('ING')
-                  if (!editingCategoryId) setCategoryForm((prev) => ({ ...prev, kind: 'ING' }))
-                }}
+                onClick={toggleCuenta}
+                disabled={selectedAccount.is_system && selectedAccount.is_active}
               >
-                Ingresos
+                {selectedAccount.is_active ? 'Desactivar' : 'Activar'}
               </button>
-              <button
-                type="button"
-                className={categoryFilter === 'EGR' ? 'segmented-tab active' : 'segmented-tab'}
-                onClick={() => {
-                  setCategoryFilter('EGR')
-                  if (!editingCategoryId) setCategoryForm((prev) => ({ ...prev, kind: 'EGR' }))
-                }}
-              >
-                Egresos
-              </button>
-            </div>
-            <button className="ghost-btn" type="button" onClick={() => resetCategoryForm(categoryFilter)}>
-              Nueva categoría
+            ) : null}
+            <button className="primary-btn" type="submit" disabled={savingAccount || !userId}>
+              {savingAccount ? 'Guardando...' : selectedAccountId ? 'Guardar cambios' : 'Crear cuenta'}
             </button>
           </div>
+        </form>
+      </Panel>
 
-          {filteredCategorias.length === 0 ? (
-            <EmptyState text={`No hay categorías de ${categoryFilter === 'ING' ? 'ingresos' : 'egresos'}.`} />
-          ) : (
-            <div className="compact-list">
+      <Panel title="Categorías">
+        <div className="config-filter-tabs">
+          <button className={categoryFilter === 'ING' ? 'tab active' : 'tab'} type="button" onClick={() => { setCategoryFilter('ING'); resetCategoryForm('ING') }}>
+            Ingresos
+          </button>
+          <button className={categoryFilter === 'EGR' ? 'tab active' : 'tab'} type="button" onClick={() => { setCategoryFilter('EGR'); resetCategoryForm('EGR') }}>
+            Egresos
+          </button>
+        </div>
+
+        <div className="config-select-row">
+          <label className="full-span">
+            <span>Categoría</span>
+            <select value={selectedCategoryId} onChange={(e) => setSelectedCategoryId(e.target.value)}>
+              <option value="">Nueva categoría</option>
               {filteredCategorias.map((item) => (
-                <CompactItemButton
-                  key={item.id}
-                  title={item.name}
-                  subtitle={`${item.kind} · orden ${item.sort_order}`}
-                  status={item.is_active ? 'Activa' : 'Inactiva'}
-                  active={editingCategoryId === item.id}
-                  onClick={() => startEditCategory(item)}
-                />
+                <option key={item.id} value={item.id}>
+                  {item.name} · {item.is_active ? 'Activa' : 'Inactiva'}
+                </option>
               ))}
-            </div>
-          )}
+            </select>
+          </label>
+        </div>
 
-          <form className="form-grid config-form-block" onSubmit={submitCategory}>
-            <label>
-              <span>Nombre</span>
-              <input value={categoryForm.name} onChange={(e) => setCategoryForm((prev) => ({ ...prev, name: e.target.value }))} required />
-            </label>
+        {filteredCategorias.length === 0 ? <EmptyState text={`No hay categorías ${categoryFilter === 'ING' ? 'de ingresos' : 'de egresos'}.`} /> : null}
 
-            <label>
-              <span>Tipo</span>
-              <select value={categoryForm.kind} onChange={(e) => setCategoryForm((prev) => ({ ...prev, kind: e.target.value }))}>
-                <option value="ING">Ingreso</option>
-                <option value="EGR">Egreso</option>
-              </select>
-            </label>
+        {selectedCategory ? (
+          <div className="selected-meta-row">
+            <span className={`status-chip ${selectedCategory.is_active ? 'active' : 'inactive'}`}>
+              {selectedCategory.is_active ? 'Activa' : 'Inactiva'}
+            </span>
+            <span className="mini-chip">{selectedCategory.kind}</span>
+          </div>
+        ) : null}
 
-            <label>
-              <span>Orden</span>
-              <input type="number" value={categoryForm.sortOrder} onChange={(e) => setCategoryForm((prev) => ({ ...prev, sortOrder: e.target.value }))} />
-            </label>
+        <form className="form-grid config-form-block" onSubmit={submitCategory}>
+          <label>
+            <span>Nombre</span>
+            <input value={categoryForm.name} onChange={(e) => setCategoryForm((prev) => ({ ...prev, name: e.target.value }))} required />
+          </label>
 
-            {editingCategoryId ? (
-              <div className="full-span config-inline-actions">
-                <button className="primary-btn" type="submit" disabled={savingCategory}>
-                  {savingCategory ? 'Guardando...' : 'Actualizar categoría'}
-                </button>
-                <button className="ghost-btn" type="button" onClick={() => resetCategoryForm(categoryFilter)}>
-                  Cancelar
-                </button>
-                {(() => {
-                  const item = categoriasItems.find((x) => x.id === editingCategoryId)
-                  if (!item) return null
-                  return (
-                    <button
-                      className="ghost-btn"
-                      type="button"
-                      onClick={() => toggleCategoria(item)}
-                      disabled={item.is_system && item.is_active}
-                      title={item.is_system && item.is_active ? 'No se puede cambiar el estado de esta categoría.' : ''}
-                    >
-                      {item.is_active ? 'Desactivar' : 'Activar'}
-                    </button>
-                  )
-                })()}
-              </div>
-            ) : (
-              <div className="full-span form-actions">
-                <button className="primary-btn" type="submit" disabled={savingCategory}>
-                  {savingCategory ? 'Guardando...' : 'Crear categoría'}
-                </button>
-              </div>
-            )}
-          </form>
-        </Panel>
-      </div>
+          <label>
+            <span>Tipo</span>
+            <select value={categoryForm.kind} onChange={(e) => setCategoryForm((prev) => ({ ...prev, kind: e.target.value }))}>
+              <option value="ING">Ingreso</option>
+              <option value="EGR">Egreso</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Orden</span>
+            <input type="number" value={categoryForm.sortOrder} onChange={(e) => setCategoryForm((prev) => ({ ...prev, sortOrder: e.target.value }))} />
+          </label>
+
+          <div className="full-span form-actions split-actions">
+            <button className="ghost-btn" type="button" onClick={() => resetCategoryForm(categoryFilter)}>Nueva</button>
+            {selectedCategory ? (
+              <button
+                className="ghost-btn"
+                type="button"
+                onClick={toggleCategoria}
+                disabled={selectedCategory.is_system && selectedCategory.is_active}
+              >
+                {selectedCategory.is_active ? 'Desactivar' : 'Activar'}
+              </button>
+            ) : null}
+            <button className="primary-btn" type="submit" disabled={savingCategory || !userId}>
+              {savingCategory ? 'Guardando...' : selectedCategoryId ? 'Guardar cambios' : 'Crear categoría'}
+            </button>
+          </div>
+        </form>
+      </Panel>
     </div>
   )
 }
