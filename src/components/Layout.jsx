@@ -29,16 +29,11 @@ export default function Layout({ title, subtitle, actions, children, userLabel, 
           }}
         >
           <div>
-            <p
-              className="eyebrow"
-              style={{ color: palette.textMuted }}
-            >
+            <p className="eyebrow" style={{ color: palette.textMuted }}>
               Bot Finanzas
             </p>
 
-            <h1 style={{ color: palette.primary }}>
-              {title}
-            </h1>
+            <h1 style={{ color: palette.primary }}>{title}</h1>
 
             {subtitle ? (
               <p className="subtitle" style={{ color: palette.textSoft }}>
