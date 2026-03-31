@@ -2,6 +2,7 @@ const baseTabs = [
   { key: 'movimientos', label: 'Movimientos' },
   { key: 'deudas', label: 'Deudas' },
   { key: 'dashboard', label: 'Dashboard' },
+  { key: 'configuracion', label: 'Configuración' },
 ]
 
 export default function NavTabs({ current, onChange, showPrestamos = false }) {

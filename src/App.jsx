@@ -6,6 +6,7 @@ import DashboardPage from './pages/DashboardPage'
 import MovimientosPage from './pages/MovimientosPage'
 import DeudasPage from './pages/DeudasPage'
 import PrestamosPage from './pages/PrestamosPage'
+import ConfiguracionPage from './pages/ConfiguracionPage'
 import { api } from './api/client'
 import { useTelegramMiniApp } from './hooks/useTelegramMiniApp'
 import { getPaletteByUser } from './theme'
@@ -29,6 +30,8 @@ export default function App() {
   const [dashboard, setDashboard] = useState(null)
   const [disponibles, setDisponibles] = useState(null)
   const [deudas, setDeudas] = useState(null)
+  const [cuentasAdmin, setCuentasAdmin] = useState(null)
+  const [categoriasAdmin, setCategoriasAdmin] = useState(null)
 
   const userId = tgUserId || manualUserId
   const palette = useMemo(() => getPaletteByUser(userId), [userId])
@@ -44,12 +47,14 @@ export default function App() {
     setLoading(true)
     setError('')
     try {
-      const [healthData, catalogosData, dashboardData, disponiblesData, deudasData] = await Promise.all([
+      const [healthData, catalogosData, dashboardData, disponiblesData, deudasData, cuentasData, categoriasData] = await Promise.all([
         api.getHealth(),
         api.getCatalogos(userId),
         api.getDashboard(userId),
         api.getDisponibles(userId),
         api.getDeudas(userId),
+        api.getCuentas(userId),
+        api.getCategoriasAdmin(userId),
       ])
 
       setHealth(healthData)
@@ -57,6 +62,8 @@ export default function App() {
       setDashboard(dashboardData)
       setDisponibles(disponiblesData)
       setDeudas(deudasData)
+      setCuentasAdmin(cuentasData)
+      setCategoriasAdmin(categoriasData)
       setHasLoadedOnce(true)
     } catch (err) {
       setError(err.message || 'No pude cargar la información.')
@@ -140,6 +147,15 @@ export default function App() {
           api={api}
           catalogos={catalogos}
           disponibles={disponibles}
+          onRefreshData={loadAllData}
+        />
+      )}
+      {activeTab === 'configuracion' && (
+        <ConfiguracionPage
+          userId={userId}
+          api={api}
+          cuentas={cuentasAdmin}
+          categorias={categoriasAdmin}
           onRefreshData={loadAllData}
         />
       )}

@@ -371,3 +371,31 @@ body {
 .debt-detail {
   align-items: center;
 }
+
+.config-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 14px;
+}
+.config-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.config-actions {
+  gap: 10px;
+}
+.helper-text {
+  color: var(--text-muted);
+  font-size: .92rem;
+}
+@media (max-width: 720px) {
+  .config-row { flex-direction: column; align-items: stretch; }
+  .config-row-actions { width: 100%; }
+  .config-row-actions .ghost-btn { width: 100%; }
+}

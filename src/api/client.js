@@ -36,8 +36,14 @@ export const api = {
   getDashboard: (userId) => request(`/dashboard/${userId}`),
   postMovimiento: (payload) =>
     request('/movimientos', { method: 'POST', body: JSON.stringify(payload) }),
-  postDeuda: (payload) =>
-    request('/deudas', { method: 'POST', body: JSON.stringify(payload) }),
-  postPagarDeuda: (payload) =>
-    request('/deudas/pagar', { method: 'POST', body: JSON.stringify(payload) }),
+  getCuentas: (userId) => request(`/cuentas/${userId}`),
+  postCuenta: (payload) => request('/cuentas', { method: 'POST', body: JSON.stringify(payload) }),
+  patchCuenta: (accountId, payload) => request(`/cuentas/${accountId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  activarCuenta: (accountId, userId) => request(`/cuentas/${accountId}/activar?telegram_user_id=${userId}`, { method: 'PATCH' }),
+  desactivarCuenta: (accountId, userId) => request(`/cuentas/${accountId}/desactivar?telegram_user_id=${userId}`, { method: 'PATCH' }),
+  getCategoriasAdmin: (userId) => request(`/categorias/${userId}`),
+  postCategoria: (payload) => request('/categorias', { method: 'POST', body: JSON.stringify(payload) }),
+  patchCategoria: (categoryId, payload) => request(`/categorias/${categoryId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  activarCategoria: (categoryId, userId) => request(`/categorias/${categoryId}/activar?telegram_user_id=${userId}`, { method: 'PATCH' }),
+  desactivarCategoria: (categoryId, userId) => request(`/categorias/${categoryId}/desactivar?telegram_user_id=${userId}`, { method: 'PATCH' }),
 }
