@@ -111,7 +111,7 @@ export default function App() {
       actions={
         <div className="header-actions">
           <button className="ghost-btn" onClick={() => setShowAmounts((v) => !v)}>
-            {showAmounts ? 'Ocultar montos' : 'Mostrar montos'}
+            {showAmounts ? 'Ocultar' : 'Ver montos'}
           </button>
           <button
             className={`icon-btn${showConfig ? ' active' : ''}`}
