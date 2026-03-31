@@ -355,10 +355,13 @@ body {
     width: 100%;
   }
 
-  .primary-btn,
-  .ghost-btn {
-    width: 100%;
-  }
+.primary-btn {
+  width: 100%;
+}
+
+.ghost-btn {
+  width: auto;
+}
 }
 
 .field-help {
@@ -398,6 +401,11 @@ body {
   .config-row { flex-direction: column; align-items: stretch; }
   .config-row-actions { width: 100%; }
   .config-row-actions .ghost-btn { width: 100%; }
+
+  .header-actions .ghost-btn,
+.header-actions .icon-btn {
+  width: auto !important;
+}
 }
 
 
@@ -766,4 +774,14 @@ body {
   .icon-btn {
     width: 100%;
   }
+}
+
+.header-actions .ghost-btn,
+.header-actions .icon-btn {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.header-actions .ghost-btn {
+  white-space: nowrap;
 }
