@@ -12,6 +12,7 @@ export default function NavTabs({ current, onChange, showPrestamos = false }) {
         { key: 'prestamos', label: 'Préstamos' },
         baseTabs[1],
         baseTabs[2],
+        baseTabs[3],
       ]
     : baseTabs
 

@@ -25,7 +25,6 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [health, setHealth] = useState(null)
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [catalogos, setCatalogos] = useState(null)
   const [dashboard, setDashboard] = useState(null)
   const [disponibles, setDisponibles] = useState(null)
@@ -64,10 +63,8 @@ export default function App() {
       setDeudas(deudasData)
       setCuentasAdmin(cuentasData)
       setCategoriasAdmin(categoriasData)
-      setHasLoadedOnce(true)
     } catch (err) {
       setError(err.message || 'No pude cargar la información.')
-      setHasLoadedOnce(true)
     } finally {
       setLoading(false)
     }
@@ -85,11 +82,9 @@ export default function App() {
       userLabel={userLabel}
       userId={userId}
       actions={
-        <>
-          <button className="ghost-btn" onClick={() => setShowAmounts((v) => !v)}>
-            {showAmounts ? 'Ocultar montos' : 'Mostrar montos'}
-          </button>
-        </>
+        <button className="ghost-btn" onClick={() => setShowAmounts((v) => !v)}>
+          {showAmounts ? 'Ocultar montos' : 'Mostrar montos'}
+        </button>
       }
     >
       {!isTelegram && (
@@ -106,8 +101,8 @@ export default function App() {
 
       {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
       {!loading && health && health.ok === false ? (
-  <MessageBanner kind="error">La API no respondió correctamente.</MessageBanner>
-) : null}
+        <MessageBanner kind="error">La API no respondió correctamente.</MessageBanner>
+      ) : null}
 
       <NavTabs current={activeTab} onChange={setActiveTab} showPrestamos={canUsePrestamos} />
 
@@ -125,7 +120,6 @@ export default function App() {
         <DeudasPage
           userId={userId}
           api={api}
-          catalogos={catalogos}
           disponibles={disponibles}
           deudas={deudas}
           onRefreshData={loadAllData}
@@ -150,6 +144,7 @@ export default function App() {
           onRefreshData={loadAllData}
         />
       )}
+
       {activeTab === 'configuracion' && (
         <ConfiguracionPage
           userId={userId}

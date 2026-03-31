@@ -34,8 +34,9 @@ export const api = {
   getNeto: (userId) => request(`/neto/${userId}`),
   getDeudas: (userId) => request(`/deudas/${userId}`),
   getDashboard: (userId) => request(`/dashboard/${userId}`),
-  postMovimiento: (payload) =>
-    request('/movimientos', { method: 'POST', body: JSON.stringify(payload) }),
+  postMovimiento: (payload) => request('/movimientos', { method: 'POST', body: JSON.stringify(payload) }),
+  postDeuda: (payload) => request('/deudas', { method: 'POST', body: JSON.stringify(payload) }),
+  postPagarDeuda: (payload) => request('/deudas/pagar', { method: 'POST', body: JSON.stringify(payload) }),
   getCuentas: (userId) => request(`/cuentas/${userId}`),
   postCuenta: (payload) => request('/cuentas', { method: 'POST', body: JSON.stringify(payload) }),
   patchCuenta: (accountId, payload) => request(`/cuentas/${accountId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
