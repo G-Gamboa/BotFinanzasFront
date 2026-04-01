@@ -1,12 +1,19 @@
 const baseTabs = [
   { key: 'movimientos', label: 'Movimientos' },
+  { key: 'historial', label: 'Historial' },
   { key: 'deudas', label: 'Deudas' },
   { key: 'dashboard', label: 'Dashboard' },
 ]
 
 export default function NavTabs({ current, onChange, showPrestamos = false }) {
   const tabs = showPrestamos
-    ? [baseTabs[0], { key: 'prestamos', label: 'Préstamos' }, baseTabs[1], baseTabs[2]]
+    ? [
+        baseTabs[0],
+        { key: 'prestamos', label: 'Préstamos' },
+        baseTabs[1],
+        baseTabs[2],
+        baseTabs[3],
+      ]
     : baseTabs
 
   return (

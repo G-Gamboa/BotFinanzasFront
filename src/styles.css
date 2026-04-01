@@ -785,3 +785,39 @@ body {
 .header-actions .ghost-btn {
   white-space: nowrap;
 }
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.history-card {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--panel-bg);
+}
+
+.history-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.history-row.small {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  flex-wrap: wrap;
+}
+
+.history-amount {
+  font-weight: bold;
+}
+
+.history-note {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}

@@ -67,4 +67,17 @@ export const api = {
   getPreferencias: (userId) => request(`/preferencias/${userId}`),
   patchPreferencias: (payload) =>
     request('/preferencias', { method: 'PATCH', body: JSON.stringify(payload) }),
+
+  getHistorial: (userId, params = {}) => {
+  const search = new URLSearchParams()
+
+  if (params.date_from) search.set('date_from', params.date_from)
+  if (params.date_to) search.set('date_to', params.date_to)
+  if (params.movement_type) search.set('movement_type', params.movement_type)
+  if (params.limit) search.set('limit', String(params.limit))
+
+  const qs = search.toString()
+  return request(`/historial/${userId}${qs ? `?${qs}` : ''}`)
+},
+
 }

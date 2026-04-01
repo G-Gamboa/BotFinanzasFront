@@ -11,6 +11,7 @@ import { api } from './api/client'
 import { useTelegramMiniApp } from './hooks/useTelegramMiniApp'
 import { getPaletteByUser } from './theme'
 import { applyTheme } from './theme/applyTheme'
+import HistorialPage from './pages/HistorialPage'
 
 function normalizeUserLabel(user) {
   if (!user) return ''
@@ -217,6 +218,13 @@ export default function App() {
               showAmounts={showAmounts}
             />
           )}
+
+          {activeTab === 'historial' && (
+  <HistorialPage
+    userId={userId}
+    api={api}
+  />
+)}
 
           {activeTab === 'prestamos' && canUsePrestamos && (
             <PrestamosPage
