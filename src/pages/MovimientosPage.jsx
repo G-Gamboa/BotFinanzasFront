@@ -373,13 +373,16 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
                     <>
                       <label>
                         <span>Cuenta destino</span>
-                        <select value={form.targetAccountName} onChange={(e) => updateField('targetAccountName', e.target.value)}>
-                          {ahorroDisponibles.map((item) => (
-                            <option key={item.cuenta} value={item.cuenta}>
-                              {item.cuenta} · Disponible Q {Number(item.saldo).toFixed(2)}
-                            </option>
-                          ))}
-                        </select>
+<select
+  value={form.targetAccountName}
+  onChange={(e) => updateField('targetAccountName', e.target.value)}
+>
+  {ahorroDisponibles.map((item) => (
+    <option key={item.cuenta} value={item.cuenta}>
+      {item.cuenta} · Disponible Q {Number(item.saldo).toFixed(2)}
+    </option>
+  ))}
+</select>
                       </label>
 
                       {form.targetAccountName ? (
