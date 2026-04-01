@@ -301,7 +301,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
 
 {form.movementType === 'EGR' ? (
   <div className="full-span helper-text">
-    Disponible en {form.paymentMethod === 'Transferencia' ? form.accountName : 'Efectivo'}: Q{' '}
+    Disponible: Q{' '}
     {getSaldoDisponible(form.paymentMethod === 'Transferencia' ? form.accountName : 'Efectivo').toFixed(2)}
   </div>
 ) : null}
