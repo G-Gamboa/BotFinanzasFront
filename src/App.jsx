@@ -19,35 +19,43 @@ function normalizeUserLabel(user) {
 
 function GearIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
-        d="M10.325 4.317a1 1 0 0 1 .95-.69h1.45a1 1 0 0 1 .95.69l.287.883a1 1 0 0 0 .95.69h.93a1 1 0 0 0 .707-.293l.67-.67a1 1 0 0 1 1.414 0l1.025 1.025a1 1 0 0 1 0 1.414l-.67.67a1 1 0 0 0-.293.707v.93a1 1 0 0 0 .69.95l.883.287a1 1 0 0 1 .69.95v1.45a1 1 0 0 1-.69.95l-.883.287a1 1 0 0 0-.69.95v.93a1 1 0 0 0 .293.707l.67.67a1 1 0 0 1 0 1.414l-1.025 1.025a1 1 0 0 1-1.414 0l-.67-.67a1 1 0 0 0-.707-.293h-.93a1 1 0 0 0-.95.69l-.287.883a1 1 0 0 1-.95.69h-1.45a1 1 0 0 1-.95-.69l-.287-.883a1 1 0 0 0-.95-.69h-.93a1 1 0 0 0-.707.293l-.67.67a1 1 0 0 1-1.414 0L3.61 18.684a1 1 0 0 1 0-1.414l.67-.67a1 1 0 0 0 .293-.707v-.93a1 1 0 0 0-.69-.95l-.883-.287a1 1 0 0 1-.69-.95v-1.45a1 1 0 0 1 .69-.95l.883-.287a1 1 0 0 0 .69-.95v-.93a1 1 0 0 0-.293-.707l-.67-.67a1 1 0 0 1 0-1.414L4.635 4.66a1 1 0 0 1 1.414 0l.67.67a1 1 0 0 0 .707.293h.93a1 1 0 0 0 .95-.69l.287-.883Z"
-        fill="none"
+        d="M12 8.75A3.25 3.25 0 1 0 12 15.25A3.25 3.25 0 1 0 12 8.75Z"
         stroke="currentColor"
-        strokeWidth="1.6"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M19.4 15a1 1 0 0 0 .2 1.1l.04.04a1.2 1.2 0 0 1 0 1.7l-1.1 1.1a1.2 1.2 0 0 1-1.7 0l-.04-.04a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.91V20a1.2 1.2 0 0 1-1.2 1.2h-1.6A1.2 1.2 0 0 1 10 20v-.06a1 1 0 0 0-.6-.91 1 1 0 0 0-1.1.2l-.04.04a1.2 1.2 0 0 1-1.7 0l-1.1-1.1a1.2 1.2 0 0 1 0-1.7l.04-.04a1 1 0 0 0 .2-1.1 1 1 0 0 0-.91-.6H4A1.2 1.2 0 0 1 2.8 13.5v-1.6A1.2 1.2 0 0 1 4 10.7h.06a1 1 0 0 0 .91-.6 1 1 0 0 0-.2-1.1l-.04-.04a1.2 1.2 0 0 1 0-1.7l1.1-1.1a1.2 1.2 0 0 1 1.7 0l.04.04a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.91V4A1.2 1.2 0 0 1 10.5 2.8h1.6A1.2 1.2 0 0 1 13.3 4v.06a1 1 0 0 0 .6.91 1 1 0 0 0 1.1-.2l.04-.04a1.2 1.2 0 0 1 1.7 0l1.1 1.1a1.2 1.2 0 0 1 0 1.7l-.04.04a1 1 0 0 0-.2 1.1 1 1 0 0 0 .91.6H20a1.2 1.2 0 0 1 1.2 1.2v1.6A1.2 1.2 0 0 1 20 14.3h-.06a1 1 0 0 0-.91.6Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" strokeWidth="1.6" />
     </svg>
   )
 }
 
 export default function App() {
   const { isTelegram, isReady, user, userId: tgUserId } = useTelegramMiniApp()
+
   const [manualUserId, setManualUserId] = useState('1282471582')
   const [activeTab, setActiveTab] = useState('movimientos')
   const [showConfig, setShowConfig] = useState(false)
   const [showAmounts, setShowAmounts] = useState(false)
+  const [prefsApplied, setPrefsApplied] = useState(false)
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [health, setHealth] = useState(null)
+
   const [catalogos, setCatalogos] = useState(null)
   const [dashboard, setDashboard] = useState(null)
   const [disponibles, setDisponibles] = useState(null)
   const [deudas, setDeudas] = useState(null)
   const [cuentasAdmin, setCuentasAdmin] = useState(null)
   const [categoriasAdmin, setCategoriasAdmin] = useState(null)
+  const [preferencias, setPreferencias] = useState(null)
 
   const userId = tgUserId || manualUserId
   const palette = useMemo(() => getPaletteByUser(userId), [userId])
@@ -62,8 +70,18 @@ export default function App() {
     if (!userId) return
     setLoading(true)
     setError('')
+
     try {
-      const [healthData, catalogosData, dashboardData, disponiblesData, deudasData, cuentasData, categoriasData] = await Promise.all([
+      const [
+        healthData,
+        catalogosData,
+        dashboardData,
+        disponiblesData,
+        deudasData,
+        cuentasData,
+        categoriasData,
+        preferenciasData,
+      ] = await Promise.all([
         api.getHealth(),
         api.getCatalogos(userId),
         api.getDashboard(userId),
@@ -71,6 +89,7 @@ export default function App() {
         api.getDeudas(userId),
         api.getCuentas(userId),
         api.getCategoriasAdmin(userId),
+        api.getPreferencias(userId),
       ])
 
       setHealth(healthData)
@@ -80,6 +99,7 @@ export default function App() {
       setDeudas(deudasData)
       setCuentasAdmin(cuentasData)
       setCategoriasAdmin(categoriasData)
+      setPreferencias(preferenciasData)
     } catch (err) {
       setError(err.message || 'No pude cargar la información.')
     } finally {
@@ -92,19 +112,30 @@ export default function App() {
     loadAllData()
   }, [isReady, userId])
 
-  const currentTitle = showConfig
-    ? 'Configuración'
-    : activeTab === 'dashboard'
-      ? 'Dashboard'
-      : activeTab === 'deudas'
-        ? 'Deudas'
-        : activeTab === 'prestamos'
-          ? 'Préstamos'
-          : 'Movimientos'
+  useEffect(() => {
+    if (!preferencias || prefsApplied) return
+
+    setShowAmounts(Boolean(preferencias.show_amounts_default))
+
+    const prefTab = preferencias.default_tab || 'movimientos'
+    const safeTab = prefTab === 'prestamos' && !canUsePrestamos ? 'movimientos' : prefTab
+    setActiveTab(safeTab)
+
+    setPrefsApplied(true)
+  }, [preferencias, prefsApplied, canUsePrestamos])
+
+  useEffect(() => {
+    setPrefsApplied(false)
+  }, [userId])
+
+  const deudasActivas = useMemo(() => {
+    const items = deudas?.items || []
+    return items.filter((item) => (item.status || '').toLowerCase() === 'active' && Number(item.pending_installments || 0) > 0)
+  }, [deudas])
 
   return (
     <Layout
-      title={currentTitle}
+      title="Gestor Finanzas"
       subtitle={isTelegram ? 'Desarrollado por G&G' : 'Modo web para pruebas y desarrollo'}
       userLabel={userLabel}
       userId={userId}
@@ -113,6 +144,7 @@ export default function App() {
           <button className="ghost-btn" onClick={() => setShowAmounts((v) => !v)}>
             {showAmounts ? 'Ocultar' : 'Ver montos'}
           </button>
+
           <button
             className={`icon-btn${showConfig ? ' active' : ''}`}
             onClick={() => setShowConfig((v) => !v)}
@@ -141,7 +173,17 @@ export default function App() {
         <MessageBanner kind="error">La API no respondió correctamente.</MessageBanner>
       ) : null}
 
-      {!showConfig ? (
+      {showConfig ? (
+        <ConfiguracionPage
+          userId={userId}
+          api={api}
+          cuentas={cuentasAdmin}
+          categorias={categoriasAdmin}
+          preferencias={preferencias}
+          canUsePrestamos={canUsePrestamos}
+          onRefreshData={loadAllData}
+        />
+      ) : (
         <>
           <NavTabs current={activeTab} onChange={setActiveTab} showPrestamos={canUsePrestamos} />
 
@@ -162,12 +204,18 @@ export default function App() {
               catalogos={catalogos}
               disponibles={disponibles}
               deudas={deudas}
+              deudasActivas={deudasActivas}
               onRefreshData={loadAllData}
             />
           )}
 
           {activeTab === 'dashboard' && (
-            <DashboardPage loading={loading} palette={palette} dashboard={dashboard} showAmounts={showAmounts} />
+            <DashboardPage
+              loading={loading}
+              palette={palette}
+              dashboard={dashboard}
+              showAmounts={showAmounts}
+            />
           )}
 
           {activeTab === 'prestamos' && canUsePrestamos && (
@@ -180,15 +228,6 @@ export default function App() {
             />
           )}
         </>
-      ) : (
-        <ConfiguracionPage
-          userId={userId}
-          api={api}
-          cuentas={cuentasAdmin}
-          categorias={categoriasAdmin}
-          loading={loading}
-          onRefreshData={loadAllData}
-        />
       )}
     </Layout>
   )
