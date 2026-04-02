@@ -359,7 +359,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
 
                   {form.sourceAccountName ? (
                     <div className="full-span helper-text">
-                      Disponible en {form.sourceAccountName}: Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
+                      Disponible: Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
                     </div>
                   ) : null}
                 </>
