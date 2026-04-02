@@ -7,11 +7,11 @@ import MovimientosPage from './pages/MovimientosPage'
 import DeudasPage from './pages/DeudasPage'
 import PrestamosPage from './pages/PrestamosPage'
 import ConfiguracionPage from './pages/ConfiguracionPage'
+import HistorialPage from './pages/HistorialPage'
 import { api } from './api/client'
 import { useTelegramMiniApp } from './hooks/useTelegramMiniApp'
 import { getPaletteByUser } from './theme'
 import { applyTheme } from './theme/applyTheme'
-import HistorialPage from './pages/HistorialPage'
 
 function normalizeUserLabel(user) {
   if (!user) return ''
@@ -22,7 +22,7 @@ function GearIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
-        d="M12 8.75A3.25 3.25 0 1 0 12 15.25A3.25 3.25 0 1 0 12 8.75Z"
+        d="M12 8.75A3.25 3.25 0 1 0 12 15.25A3.25 3.25 0 0 0 12 8.75Z"
         stroke="currentColor"
         strokeWidth="1.8"
       />
@@ -35,6 +35,33 @@ function GearIcon() {
       />
     </svg>
   )
+}
+
+function getTelegramDebugInfo() {
+  try {
+    const tg = window?.Telegram?.WebApp
+    return {
+      hasTelegramObject: Boolean(window?.Telegram),
+      hasWebAppObject: Boolean(tg),
+      initData: tg?.initData || '',
+      initDataUnsafe: tg?.initDataUnsafe || null,
+      version: tg?.version || '',
+      platform: tg?.platform || '',
+      colorScheme: tg?.colorScheme || '',
+      isExpanded: Boolean(tg?.isExpanded),
+    }
+  } catch {
+    return {
+      hasTelegramObject: false,
+      hasWebAppObject: false,
+      initData: '',
+      initDataUnsafe: null,
+      version: '',
+      platform: '',
+      colorScheme: '',
+      isExpanded: false,
+    }
+  }
 }
 
 export default function App() {
@@ -58,6 +85,9 @@ export default function App() {
   const [categoriasAdmin, setCategoriasAdmin] = useState(null)
   const [preferencias, setPreferencias] = useState(null)
 
+  const [showDebugAuth, setShowDebugAuth] = useState(true)
+  const [tgDebug, setTgDebug] = useState(getTelegramDebugInfo())
+
   const userId = tgUserId || manualUserId
   const palette = useMemo(() => getPaletteByUser(userId), [userId])
   const userLabel = tgUserId ? normalizeUserLabel(user) : `Prueba manual · ${manualUserId}`
@@ -66,6 +96,10 @@ export default function App() {
   useEffect(() => {
     applyTheme(palette)
   }, [palette])
+
+  useEffect(() => {
+    setTgDebug(getTelegramDebugInfo())
+  }, [isReady, tgUserId])
 
   async function loadAllData() {
     if (!userId) return
@@ -129,10 +163,7 @@ export default function App() {
     setPrefsApplied(false)
   }, [userId])
 
-  const deudasActivas = useMemo(() => {
-    const items = deudas?.items || []
-    return items.filter((item) => (item.status || '').toLowerCase() === 'active' && Number(item.pending_installments || 0) > 0)
-  }, [deudas])
+  const authHeaderPreview = tgDebug.initData ? `tma ${tgDebug.initData}` : ''
 
   return (
     <Layout
@@ -169,6 +200,77 @@ export default function App() {
         </section>
       )}
 
+      <section className="panel compact-panel">
+        <div className="split-actions">
+          <h3 style={{ margin: 0 }}>Debug Telegram Auth</h3>
+          <button className="ghost-btn" type="button" onClick={() => setShowDebugAuth((v) => !v)}>
+            {showDebugAuth ? 'Ocultar debug' : 'Ver debug'}
+          </button>
+        </div>
+
+        {showDebugAuth ? (
+          <div className="debug-auth-grid">
+            <div className="debug-item">
+              <strong>isTelegram:</strong> {String(isTelegram)}
+            </div>
+            <div className="debug-item">
+              <strong>isReady:</strong> {String(isReady)}
+            </div>
+            <div className="debug-item">
+              <strong>tgUserId:</strong> {String(tgUserId || '')}
+            </div>
+            <div className="debug-item">
+              <strong>hasTelegramObject:</strong> {String(tgDebug.hasTelegramObject)}
+            </div>
+            <div className="debug-item">
+              <strong>hasWebAppObject:</strong> {String(tgDebug.hasWebAppObject)}
+            </div>
+            <div className="debug-item">
+              <strong>platform:</strong> {tgDebug.platform || '(vacío)'}
+            </div>
+            <div className="debug-item">
+              <strong>version:</strong> {tgDebug.version || '(vacío)'}
+            </div>
+            <div className="debug-item">
+              <strong>colorScheme:</strong> {tgDebug.colorScheme || '(vacío)'}
+            </div>
+            <div className="debug-item">
+              <strong>isExpanded:</strong> {String(tgDebug.isExpanded)}
+            </div>
+
+            <div className="debug-block">
+              <strong>initData:</strong>
+              <textarea
+                readOnly
+                value={tgDebug.initData || ''}
+                rows={6}
+                style={{ width: '100%', marginTop: '8px' }}
+              />
+            </div>
+
+            <div className="debug-block">
+              <strong>Authorization preview:</strong>
+              <textarea
+                readOnly
+                value={authHeaderPreview}
+                rows={6}
+                style={{ width: '100%', marginTop: '8px' }}
+              />
+            </div>
+
+            <div className="debug-block">
+              <strong>initDataUnsafe:</strong>
+              <textarea
+                readOnly
+                value={JSON.stringify(tgDebug.initDataUnsafe || {}, null, 2)}
+                rows={10}
+                style={{ width: '100%', marginTop: '8px' }}
+              />
+            </div>
+          </div>
+        ) : null}
+      </section>
+
       {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
       {!loading && health && health.ok === false ? (
         <MessageBanner kind="error">La API no respondió correctamente.</MessageBanner>
@@ -198,6 +300,13 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'historial' && (
+            <HistorialPage
+              userId={userId}
+              api={api}
+            />
+          )}
+
           {activeTab === 'deudas' && (
             <DeudasPage
               userId={userId}
@@ -205,7 +314,6 @@ export default function App() {
               catalogos={catalogos}
               disponibles={disponibles}
               deudas={deudas}
-              deudasActivas={deudasActivas}
               onRefreshData={loadAllData}
             />
           )}
@@ -218,13 +326,6 @@ export default function App() {
               showAmounts={showAmounts}
             />
           )}
-
-          {activeTab === 'historial' && (
-  <HistorialPage
-    userId={userId}
-    api={api}
-  />
-)}
 
           {activeTab === 'prestamos' && canUsePrestamos && (
             <PrestamosPage
