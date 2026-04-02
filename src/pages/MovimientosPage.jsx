@@ -153,6 +153,27 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
     return Number(found?.saldo || 0)
   }
 
+useEffect(() => {
+  if (form.movementType !== 'MOV') return
+  if (form.movSubtype !== 'AHORRO') return
+
+  if (form.movDirection === 'RETIRAR') {
+    const primeraCuentaAhorro = ahorroDisponibles[0]?.cuenta || ''
+    if (form.targetAccountName !== primeraCuentaAhorro) {
+      setForm((prev) => ({
+        ...prev,
+        targetAccountName: primeraCuentaAhorro,
+      }))
+    }
+  }
+}, [
+  form.movementType,
+  form.movSubtype,
+  form.movDirection,
+  ahorroDisponibles,
+  form.targetAccountName,
+])
+
   async function submit(e) {
     e.preventDefault()
     setSaving(true)
@@ -299,12 +320,12 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
                 </label>
               )}
 
-{form.movementType === 'EGR' ? (
-  <div className="full-span helper-text">
-    Disponible: Q{' '}
-    {getSaldoDisponible(form.paymentMethod === 'Transferencia' ? form.accountName : 'Efectivo').toFixed(2)}
-  </div>
-) : null}
+              {form.movementType === 'EGR' ? (
+                <div className="full-span helper-text">
+                  Disponible: Q{' '}
+                  {getSaldoDisponible(form.paymentMethod === 'Transferencia' ? form.accountName : 'Efectivo').toFixed(2)}
+                </div>
+              ) : null}
             </>
           )}
 
@@ -373,16 +394,16 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
                     <>
                       <label>
                         <span>Cuenta destino</span>
-<select
-  value={form.targetAccountName}
-  onChange={(e) => updateField('targetAccountName', e.target.value)}
->
-  {ahorroDisponibles.map((item) => (
-    <option key={item.cuenta} value={item.cuenta}>
-      {item.cuenta} · Disponible Q {Number(item.saldo).toFixed(2)}
-    </option>
-  ))}
-</select>
+                        <select
+                          value={form.targetAccountName}
+                          onChange={(e) => updateField('targetAccountName', e.target.value)}
+                        >
+                          {ahorroDisponibles.map((item) => (
+                            <option key={item.cuenta} value={item.cuenta}>
+                              {item.cuenta} · Disponible Q {Number(item.saldo).toFixed(2)}
+                            </option>
+                          ))}
+                        </select>
                       </label>
 
                       {form.targetAccountName ? (
