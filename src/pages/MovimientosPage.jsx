@@ -153,26 +153,26 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
     return Number(found?.saldo || 0)
   }
 
-useEffect(() => {
-  if (form.movementType !== 'MOV') return
-  if (form.movSubtype !== 'AHORRO') return
+  useEffect(() => {
+    if (form.movementType !== 'MOV') return
+    if (form.movSubtype !== 'AHORRO') return
 
-  if (form.movDirection === 'RETIRAR') {
-    const primeraCuentaAhorro = ahorroDisponibles[0]?.cuenta || ''
-    if (form.targetAccountName !== primeraCuentaAhorro) {
-      setForm((prev) => ({
-        ...prev,
-        targetAccountName: primeraCuentaAhorro,
-      }))
+    if (form.movDirection === 'RETIRAR') {
+      const primeraCuentaAhorro = ahorroDisponibles[0]?.cuenta || ''
+      if (form.targetAccountName !== primeraCuentaAhorro) {
+        setForm((prev) => ({
+          ...prev,
+          targetAccountName: primeraCuentaAhorro,
+        }))
+      }
     }
-  }
-}, [
-  form.movementType,
-  form.movSubtype,
-  form.movDirection,
-  ahorroDisponibles,
-  form.targetAccountName,
-])
+  }, [
+    form.movementType,
+    form.movSubtype,
+    form.movDirection,
+    ahorroDisponibles,
+    form.targetAccountName,
+  ])
 
   async function submit(e) {
     e.preventDefault()
@@ -400,7 +400,7 @@ useEffect(() => {
                         >
                           {ahorroDisponibles.map((item) => (
                             <option key={item.cuenta} value={item.cuenta}>
-                              {item.cuenta} · Disponible Q {Number(item.saldo).toFixed(2)}
+                              {item.cuenta}
                             </option>
                           ))}
                         </select>
@@ -408,7 +408,7 @@ useEffect(() => {
 
                       {form.targetAccountName ? (
                         <div className="full-span helper-text">
-                          Disponible en ahorro para {form.targetAccountName}: Q {getAhorroDisponible(form.targetAccountName).toFixed(2)}
+                          Disponible: Q {getAhorroDisponible(form.targetAccountName).toFixed(2)}
                         </div>
                       ) : null}
                     </>
