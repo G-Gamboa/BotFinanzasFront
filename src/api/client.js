@@ -1,16 +1,29 @@
 const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || ''
 
+function getTelegramInitData() {
+  try {
+    return window?.Telegram?.WebApp?.initData || ''
+  } catch {
+    return ''
+  }
+}
 
 async function request(path, options = {}) {
+  const initData = getTelegramInitData()
+
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(initData ? { Authorization: `tma ${initData}` } : {}),
+    ...(options.headers || {}),
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
     ...options,
+    headers,
   })
 
   const text = await response.text()
+
   let data
   try {
     data = text ? JSON.parse(text) : null
@@ -19,7 +32,7 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    const message = data?.detail || data?.message || 'Error inesperado en la API'
+    const message = data?.detail || data?.message || 'Error en API'
     throw new Error(message)
   }
 
