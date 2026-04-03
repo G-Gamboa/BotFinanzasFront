@@ -153,26 +153,29 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
     return Number(found?.saldo || 0)
   }
 
-  useEffect(() => {
-    if (form.movementType !== 'MOV') return
-    if (form.movSubtype !== 'AHORRO') return
+useEffect(() => {
+  if (form.movementType !== 'MOV') return
+  if (form.movSubtype !== 'AHORRO') return
+  if (form.movDirection !== 'RETIRAR') return
+  if (!ahorroDisponibles.length) return
 
-    if (form.movDirection === 'RETIRAR') {
-      const primeraCuentaAhorro = ahorroDisponibles[0]?.cuenta || ''
-      if (form.targetAccountName !== primeraCuentaAhorro) {
-        setForm((prev) => ({
-          ...prev,
-          targetAccountName: primeraCuentaAhorro,
-        }))
-      }
-    }
-  }, [
-    form.movementType,
-    form.movSubtype,
-    form.movDirection,
-    ahorroDisponibles,
-    form.targetAccountName,
-  ])
+  const cuentaActualExiste = ahorroDisponibles.some(
+    (item) => item.cuenta === form.targetAccountName
+  )
+
+  if (!form.targetAccountName || !cuentaActualExiste) {
+    setForm((prev) => ({
+      ...prev,
+      targetAccountName: ahorroDisponibles[0].cuenta,
+    }))
+  }
+}, [
+  form.movementType,
+  form.movSubtype,
+  form.movDirection,
+  ahorroDisponibles,
+  form.targetAccountName,
+])
 
   async function submit(e) {
     e.preventDefault()
