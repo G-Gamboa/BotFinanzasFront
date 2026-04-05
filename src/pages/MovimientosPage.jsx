@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
+import { getGuatemalaDateString } from '../utils/dates'
 
 const initialForm = {
   movementType: 'EGR',
-  movementDate: new Date().toISOString().slice(0, 10),
+  movementDate: getGuatemalaDateString(),
   amount: '',
   note: '',
 
@@ -246,7 +247,7 @@ useEffect(() => {
       setForm((prev) => ({
         ...initialForm,
         movementType: prev.movementType,
-        movementDate: new Date().toISOString().slice(0, 10),
+        movementDate: getGuatemalaDateString(),
         categoryName:
           prev.movementType === 'ING'
             ? (ingCategories[0] || '')

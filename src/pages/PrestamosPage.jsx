@@ -2,15 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
 import { getLiquidAccounts, getLoanPeople } from '../lib/accountFilters'
-
-function todayLocal() {
-  const d = new Date()
-  const off = d.getTimezoneOffset()
-  return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10)
-}
+import { getGuatemalaDateString } from '../utils/dates'
 
 const initialForm = {
-  movement_date: todayLocal(),
+  movement_date: getGuatemalaDateString(),
   accion: 'DAR',
   loan_person_name: '',
   account_name: '',
@@ -80,7 +75,7 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
 
       await api.postMovimiento(payload)
       setMessage('Préstamo registrado correctamente.')
-      setForm({ ...initialForm, movement_date: todayLocal() })
+      setForm({ ...initialForm, movement_date: getGuatemalaDateString() })
       onRefreshData?.()
     } catch (err) {
       setError(err.message || 'No pude registrar el préstamo.')

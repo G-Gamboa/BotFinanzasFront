@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import Panel from '../components/Panel'
 import EmptyState from '../components/EmptyState'
 import MessageBanner from '../components/MessageBanner'
+import { getGuatemalaDateString } from '../utils/dates'
 
 function q(value) {
   const n = Number(value)
@@ -12,7 +13,7 @@ function q(value) {
 const initialCreateForm = {
   name: '',
   creditor: '',
-  dueDate: new Date().toISOString().slice(0, 10),
+  dueDate: getGuatemalaDateString(),
   installmentAmount: '',
   totalInstallments: '',
   paidInstallments: '0',
@@ -20,7 +21,7 @@ const initialCreateForm = {
 
 const initialPayForm = {
   debtId: '',
-  paymentDate: new Date().toISOString().slice(0, 10),
+  paymentDate: getGuatemalaDateString(),
   paymentMethod: 'Efectivo',
   accountName: 'Efectivo',
   note: '',
@@ -79,7 +80,7 @@ export default function DeudasPage({ userId, api, disponibles, deudas, onRefresh
       setMessage('Deuda creada correctamente.')
       setCreateForm({
         ...initialCreateForm,
-        dueDate: new Date().toISOString().slice(0, 10),
+        dueDate: getGuatemalaDateString(),
       })
       onRefreshData?.()
     } catch (err) {
@@ -108,7 +109,7 @@ export default function DeudasPage({ userId, api, disponibles, deudas, onRefresh
       setMessage('Pago registrado correctamente.')
       setPayForm({
         ...initialPayForm,
-        paymentDate: new Date().toISOString().slice(0, 10),
+        paymentDate: getGuatemalaDateString(),
         debtId: '',
         accountName: 'Efectivo',
       })

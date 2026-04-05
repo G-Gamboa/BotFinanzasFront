@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { api } from "../api/client";
+import { getGuatemalaDateString } from "../utils/dates";
 
 export default function MovimientoForm({ palette, userId, catalogos, onSaved }) {
   const [tipo, setTipo] = useState("EGR");
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [fecha, setFecha] = useState(getGuatemalaDateString());
   const [fuente, setFuente] = useState("");
   const [categoria, setCategoria] = useState("");
   const [monto, setMonto] = useState("");
