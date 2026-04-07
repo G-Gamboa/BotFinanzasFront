@@ -856,3 +856,50 @@ body {
   gap: 12px;
   font-size: 0.95rem;
 }
+
+.history-row-top {
+  align-items: flex-start;
+}
+
+.history-top-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.history-top-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+.history-chip-ing,
+.history-chip-egr,
+.history-chip-mov,
+.history-chip-subtype {
+  background: var(--panel-bg);
+}
+
+.history-wrap {
+  flex-wrap: wrap;
+}
+
+.history-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.danger-btn {
+  border-color: rgba(220, 38, 38, 0.35);
+}

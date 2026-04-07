@@ -83,6 +83,13 @@ export const api = {
   patchPreferencias: (payload) =>
     request('/preferencias', { method: 'PATCH', body: JSON.stringify(payload) }),
 
+
+  anularMovimiento: (movementId, payload) =>
+  request(`/movimientos/${movementId}/anular`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  }),
+
   getHistorial: (userId, params = {}) => {
   const search = new URLSearchParams()
 
