@@ -219,7 +219,7 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
 
               {form.sourceAccountName ? (
                 <div className="full-span helper-text">
-                  Disponible en {form.sourceAccountName}: Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
+                  Disponible: Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
                 </div>
               ) : null}
 
@@ -261,7 +261,7 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
                   ) : (
                     availableConcepts.map((item) => (
                       <option key={item.concept} value={item.concept}>
-                        {item.concept} · Q {Number(item.balance).toFixed(2)}
+                        {item.concept}
                       </option>
                     ))
                   )}
@@ -270,7 +270,7 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
 
               {form.selectedConcept ? (
                 <div className="full-span helper-text">
-                  Disponible en {form.selectedConcept}: Q {getSelectedConceptBalance().toFixed(2)}
+                  Disponible: Q {getSelectedConceptBalance().toFixed(2)}
                 </div>
               ) : null}
             </>
