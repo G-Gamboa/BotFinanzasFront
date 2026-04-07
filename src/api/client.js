@@ -48,6 +48,7 @@ export const api = {
   getNeto: (userId) => request(`/neto/${userId}`),
   getDeudas: (userId) => request(`/deudas/${userId}`),
   getDashboard: (userId) => request(`/dashboard/${userId}`),
+  getPrestamosView: (userId) => request(`/prestamos/${userId}`),
 
   postMovimiento: (payload) =>
     request('/movimientos', { method: 'POST', body: JSON.stringify(payload) }),

@@ -822,3 +822,37 @@ body {
   opacity: 0.8;
 }
 
+.loan-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.loan-summary-card {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--panel-bg);
+}
+
+.loan-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.loan-concepts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.loan-concept-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.95rem;
+}

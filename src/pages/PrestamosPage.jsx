@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
-import { getLiquidAccounts, getLoanPeople } from '../lib/accountFilters'
+import EmptyState from '../components/EmptyState'
 import { getGuatemalaDateString } from '../utils/dates'
 
 const initialForm = {
-  movement_date: getGuatemalaDateString(),
-  accion: 'DAR',
-  loan_person_name: '',
-  account_name: '',
+  movementDate: getGuatemalaDateString(),
+  action: 'DAR',
+  sourceAccountName: '',
+  targetAccountName: '',
+  loanPersonName: '',
   amount: '',
   note: '',
+  selectedConcept: 'General',
 }
 
 export default function PrestamosPage({ userId, api, catalogos, disponibles, onRefreshData }) {
@@ -18,27 +20,87 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [prestamosView, setPrestamosView] = useState({ items: [], total_people: 0 })
+  const [loadingView, setLoadingView] = useState(false)
 
-  const personas = useMemo(() => getLoanPeople(catalogos), [catalogos])
-  const cuentas = useMemo(() => getLiquidAccounts(catalogos), [catalogos])
-  const loanBalances = useMemo(() => new Map((disponibles?.prestamos_por_persona || []).map((item) => [item.persona, Number(item.saldo || 0)])), [disponibles])
-  const liquidBalances = useMemo(() => new Map((disponibles?.saldos_liquidos || []).map((item) => [item.cuenta, Number(item.saldo || 0)])), [disponibles])
+  const liquidAccounts = useMemo(
+    () => (catalogos?.accounts?.liquid || []).map((a) => a.name),
+    [catalogos]
+  )
+
+  const loanPeople = useMemo(
+    () => (catalogos?.loan_people || []).map((p) => p.name),
+    [catalogos]
+  )
+
+  const saldosLiquidos = useMemo(
+    () => disponibles?.saldos_liquidos || [],
+    [disponibles]
+  )
+
+  const selectedPersonData = useMemo(
+    () => (prestamosView.items || []).find((item) => item.person === form.loanPersonName) || null,
+    [prestamosView, form.loanPersonName]
+  )
+
+  const availableConcepts = useMemo(() => {
+    if (!selectedPersonData) return []
+    return selectedPersonData.concepts || []
+  }, [selectedPersonData])
 
   useEffect(() => {
     setForm((prev) => ({
       ...prev,
-      loan_person_name: prev.loan_person_name || personas[0]?.name || '',
-      account_name: prev.account_name || cuentas[0]?.name || '',
+      sourceAccountName: prev.sourceAccountName || liquidAccounts[0] || '',
+      targetAccountName: prev.targetAccountName || liquidAccounts[0] || '',
+      loanPersonName: prev.loanPersonName || loanPeople[0] || '',
     }))
-  }, [personas, cuentas])
+  }, [liquidAccounts, loanPeople])
 
-  function update(field, value) {
+  useEffect(() => {
+    if (form.action !== 'COBRAR') return
+    if (!availableConcepts.length) {
+      if (form.selectedConcept !== 'General') {
+        setForm((prev) => ({ ...prev, selectedConcept: 'General' }))
+      }
+      return
+    }
+
+    const exists = availableConcepts.some((c) => c.concept === form.selectedConcept)
+    if (!exists) {
+      setForm((prev) => ({ ...prev, selectedConcept: availableConcepts[0].concept }))
+    }
+  }, [form.action, availableConcepts, form.selectedConcept])
+
+  async function loadPrestamosView() {
+    if (!userId) return
+    setLoadingView(true)
+    try {
+      const data = await api.getPrestamosView(userId)
+      setPrestamosView(data || { items: [], total_people: 0 })
+    } catch (err) {
+      setError(err.message || 'No pude cargar el resumen de préstamos.')
+    } finally {
+      setLoadingView(false)
+    }
+  }
+
+  useEffect(() => {
+    loadPrestamosView()
+  }, [userId])
+
+  function updateField(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
-  function helper() {
-    if (form.accion === 'DAR') return form.account_name ? `Disponible: ${money(liquidBalances.get(form.account_name) ?? 0)}` : ''
-    return form.loan_person_name ? `Disponible por cobrar: ${money(loanBalances.get(form.loan_person_name) ?? 0)}` : ''
+  function getSaldoDisponible(cuenta) {
+    const found = saldosLiquidos.find((item) => item.cuenta === cuenta)
+    return Number(found?.saldo || 0)
+  }
+
+  function getSelectedConceptBalance() {
+    const found = availableConcepts.find((c) => c.concept === form.selectedConcept)
+    return Number(found?.balance || 0)
   }
 
   async function submit(e) {
@@ -48,37 +110,50 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
     setError('')
 
     try {
-      const amount = Number(form.amount)
-      if (!amount || amount <= 0) throw new Error('Ingresa un monto válido.')
-
-      if (form.accion === 'DAR') {
-        const available = liquidBalances.get(form.account_name) ?? 0
-        if (amount > available) throw new Error(`No puedes prestar más de ${money(available)} desde ${form.account_name}.`)
-      } else {
-        const available = loanBalances.get(form.loan_person_name) ?? 0
-        if (amount > available) throw new Error(`No puedes cobrar más de ${money(available)} a ${form.loan_person_name}.`)
-      }
-
       const payload = {
         telegram_user_id: Number(userId),
         movement_type: 'MOV',
-        movement_date: form.movement_date,
-        amount,
-        note: form.note || null,
+        movement_date: form.movementDate,
         mov_subtype: 'PRESTAMO',
-        mov_direction: form.accion,
-        loan_person_name: form.loan_person_name,
+        mov_direction: form.action,
+        loan_person_name: form.loanPersonName,
+        amount: Number(form.amount),
+        note:
+          form.action === 'DAR'
+            ? (form.note?.trim() || null)
+            : form.selectedConcept === 'General'
+              ? null
+              : form.selectedConcept,
       }
 
-      if (form.accion === 'DAR') payload.source_account_name = form.account_name
-      if (form.accion === 'COBRAR') payload.target_account_name = form.account_name
+      if (form.action === 'DAR') {
+        payload.source_account_name = form.sourceAccountName
+      } else {
+        payload.target_account_name = form.targetAccountName
+      }
 
       await api.postMovimiento(payload)
-      setMessage('Préstamo registrado correctamente.')
-      setForm({ ...initialForm, movement_date: getGuatemalaDateString() })
+
+      setMessage(
+        form.action === 'DAR'
+          ? 'Préstamo registrado correctamente.'
+          : 'Cobro registrado correctamente.'
+      )
+
+      setForm((prev) => ({
+        ...initialForm,
+        movementDate: getGuatemalaDateString(),
+        action: prev.action,
+        sourceAccountName: liquidAccounts[0] || '',
+        targetAccountName: liquidAccounts[0] || '',
+        loanPersonName: loanPeople[0] || '',
+        selectedConcept: 'General',
+      }))
+
+      await loadPrestamosView()
       onRefreshData?.()
     } catch (err) {
-      setError(err.message || 'No pude registrar el préstamo.')
+      setError(err.message || 'No pude guardar el movimiento de préstamo.')
     } finally {
       setSaving(false)
     }
@@ -92,56 +167,166 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
 
         <form className="form-grid" onSubmit={submit}>
           <label>
-            <span>Acción</span>
-            <select value={form.accion} onChange={(e) => update('accion', e.target.value)}>
-              <option value="DAR">Dar</option>
-              <option value="COBRAR">Cobrar</option>
-            </select>
+            <span>Fecha</span>
+            <input
+              type="date"
+              value={form.movementDate}
+              onChange={(e) => updateField('movementDate', e.target.value)}
+              required
+            />
           </label>
 
           <label>
-            <span>Fecha</span>
-            <input type="date" value={form.movement_date} onChange={(e) => update('movement_date', e.target.value)} required />
+            <span>Acción</span>
+            <select
+              value={form.action}
+              onChange={(e) => updateField('action', e.target.value)}
+            >
+              <option value="DAR">Dar préstamo</option>
+              <option value="COBRAR">Cobrar préstamo</option>
+            </select>
           </label>
 
           <label>
             <span>Persona</span>
-            <select value={form.loan_person_name} onChange={(e) => update('loan_person_name', e.target.value)} required>
-              <option value="">Selecciona</option>
-              {personas.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
+            <select
+              value={form.loanPersonName}
+              onChange={(e) => updateField('loanPersonName', e.target.value)}
+            >
+              {loanPeople.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
             </select>
           </label>
 
-          <label>
-            <span>Cuenta</span>
-            <select value={form.account_name} onChange={(e) => update('account_name', e.target.value)} required>
-              <option value="">Selecciona</option>
-              {cuentas.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-            </select>
-          </label>
+          {form.action === 'DAR' ? (
+            <>
+              <label>
+                <span>Cuenta origen</span>
+                <select
+                  value={form.sourceAccountName}
+                  onChange={(e) => updateField('sourceAccountName', e.target.value)}
+                >
+                  {liquidAccounts.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {form.sourceAccountName ? (
+                <div className="full-span helper-text">
+                  Disponible en {form.sourceAccountName}: Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
+                </div>
+              ) : null}
+
+              <label className="full-span">
+                <span>Nota / concepto</span>
+                <input
+                  type="text"
+                  value={form.note}
+                  onChange={(e) => updateField('note', e.target.value)}
+                  placeholder="Opcional. Si va vacío, se guarda como General"
+                />
+              </label>
+            </>
+          ) : (
+            <>
+              <label>
+                <span>Cuenta destino</span>
+                <select
+                  value={form.targetAccountName}
+                  onChange={(e) => updateField('targetAccountName', e.target.value)}
+                >
+                  {liquidAccounts.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <span>Concepto a cobrar</span>
+                <select
+                  value={form.selectedConcept}
+                  onChange={(e) => updateField('selectedConcept', e.target.value)}
+                  disabled={!availableConcepts.length}
+                >
+                  {!availableConcepts.length ? (
+                    <option value="General">Sin conceptos disponibles</option>
+                  ) : (
+                    availableConcepts.map((item) => (
+                      <option key={item.concept} value={item.concept}>
+                        {item.concept} · Q {Number(item.balance).toFixed(2)}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </label>
+
+              {form.selectedConcept ? (
+                <div className="full-span helper-text">
+                  Disponible en {form.selectedConcept}: Q {getSelectedConceptBalance().toFixed(2)}
+                </div>
+              ) : null}
+            </>
+          )}
 
           <label>
             <span>Monto</span>
-            <input type="number" min="0.01" step="0.01" value={form.amount} onChange={(e) => update('amount', e.target.value)} required />
-            {helper() ? <small className="field-help">{helper()}</small> : null}
-          </label>
-
-          <label className="full-span">
-            <span>Nota</span>
-            <input type="text" value={form.note} onChange={(e) => update('note', e.target.value)} />
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={form.amount}
+              onChange={(e) => updateField('amount', e.target.value)}
+              required
+            />
           </label>
 
           <div className="full-span form-actions">
-            <button className="primary-btn" type="submit" disabled={saving || !userId}>
-              {saving ? 'Guardando...' : 'Guardar préstamo'}
+            <button className="primary-btn" type="submit" disabled={saving}>
+              {saving
+                ? 'Guardando...'
+                : form.action === 'DAR'
+                  ? 'Guardar préstamo'
+                  : 'Registrar cobro'}
             </button>
           </div>
         </form>
       </Panel>
+
+      <Panel title="Resumen por persona">
+        {loadingView ? <div>Cargando...</div> : null}
+
+        {!loadingView && !(prestamosView.items || []).length ? (
+          <EmptyState text="No hay préstamos activos." />
+        ) : null}
+
+        <div className="loan-summary-list">
+          {(prestamosView.items || []).map((item) => (
+            <div key={item.person} className="loan-summary-card">
+              <div className="loan-summary-header">
+                <strong>{item.person}</strong>
+                <span>Q {Number(item.total_balance).toFixed(2)}</span>
+              </div>
+
+              <div className="loan-concepts-list">
+                {(item.concepts || []).map((concept) => (
+                  <div key={`${item.person}-${concept.concept}`} className="loan-concept-row">
+                    <span>{concept.concept}</span>
+                    <span>Q {Number(concept.balance).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Panel>
     </div>
   )
-}
-
-function money(value) {
-  return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(Number(value || 0))
 }
