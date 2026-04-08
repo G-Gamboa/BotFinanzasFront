@@ -21,7 +21,7 @@ const initialForm = {
   loanPersonName: '',
 }
 
-export default function MovimientosPage({ userId, api, catalogos, disponibles, onRefreshData }) {
+export default function MovimientosPage({ userId, api, catalogos, disponibles, dashboard,onRefreshData }) {
   const [form, setForm] = useState(initialForm)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -50,6 +50,10 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
   const loanPeople = useMemo(
     () => (catalogos?.loan_people || []).map((p) => p.name),
     [catalogos]
+  )
+
+  const investmentBalances=useMemo(
+    ()=> dashboard?.networth?.inv_map || {}, [dashboard]
   )
 
   const transferAccounts = useMemo(
@@ -196,6 +200,10 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
   function getSaldoDisponible(cuenta) {
     const found = saldosLiquidos.find((item) => item.cuenta === cuenta)
     return Number(found?.saldo || 0)
+  }
+
+  function getInvestmentDisponible(cuenta){
+    return Number(investmentBalances?.[cuenta] || 0)
   }
 
   useEffect(() => {
@@ -500,46 +508,52 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
                   )}
 
                   {form.movDirection === 'RETIRAR_INV' && (
-                    <>
-                      <label>
-                        <span>Cuenta inversión (sale)</span>
-                        <select value={form.sourceAccountName} onChange={(e) => updateField('sourceAccountName', e.target.value)}>
-                          {investmentAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
-                        </select>
-                      </label>
+  <>
+    <label>
+      <span>Cuenta inversión (sale)</span>
+      <select value={form.sourceAccountName} onChange={(e) => updateField('sourceAccountName', e.target.value)}>
+        {investmentAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
+      </select>
+    </label>
 
-                      <label>
-                        <span>Cuenta destino (entra)</span>
-                        <select value={form.targetAccountName} onChange={(e) => updateField('targetAccountName', e.target.value)}>
-                          {liquidAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
-                        </select>
-                      </label>
+    <label>
+      <span>Cuenta destino (entra)</span>
+      <select value={form.targetAccountName} onChange={(e) => updateField('targetAccountName', e.target.value)}>
+        {liquidAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
+      </select>
+    </label>
 
-                      {form.targetAccountName ? (
-                        <div className="full-span helper-text">
-                          Disponible en destino: Q {getSaldoDisponible(form.targetAccountName).toFixed(2)}
-                        </div>
-                      ) : null}
-                    </>
-                  )}
+    {form.sourceAccountName ? (
+      <div className="full-span helper-text">
+        Disponible en {form.sourceAccountName}: $ {getInvestmentDisponible(form.sourceAccountName).toFixed(2)}
+      </div>
+    ) : null}
+  </>
+)}
 
                   {form.movDirection === 'MOVER_INV' && (
-                    <>
-                      <label>
-                        <span>Cuenta inversión origen (sale)</span>
-                        <select value={form.sourceAccountName} onChange={(e) => updateField('sourceAccountName', e.target.value)}>
-                          {investmentAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
-                        </select>
-                      </label>
+  <>
+    <label>
+      <span>Cuenta inversión origen (sale)</span>
+      <select value={form.sourceAccountName} onChange={(e) => updateField('sourceAccountName', e.target.value)}>
+        {investmentAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
+      </select>
+    </label>
 
-                      <label>
-                        <span>Cuenta inversión destino (entra)</span>
-                        <select value={form.targetAccountName} onChange={(e) => updateField('targetAccountName', e.target.value)}>
-                          {investmentAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
-                        </select>
-                      </label>
-                    </>
-                  )}
+    <label>
+      <span>Cuenta inversión destino (entra)</span>
+      <select value={form.targetAccountName} onChange={(e) => updateField('targetAccountName', e.target.value)}>
+        {investmentAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
+      </select>
+    </label>
+
+    {form.sourceAccountName ? (
+      <div className="full-span helper-text">
+        Disponible en {form.sourceAccountName}: $ {getInvestmentDisponible(form.sourceAccountName).toFixed(2)}
+      </div>
+    ) : null}
+  </>
+)}
 
                   <label>
                     <span>Monto (sale)</span>

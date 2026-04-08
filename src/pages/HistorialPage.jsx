@@ -3,7 +3,7 @@ import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
 import EmptyState from '../components/EmptyState'
 
-export default function HistorialPage({ userId, api }) {
+export default function HistorialPage({ userId, api,onRefreshData }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -65,6 +65,7 @@ export default function HistorialPage({ userId, api }) {
 
       setMessage(`Movimiento #${item.id} anulado correctamente.`)
       await loadHistorial()
+      await onRefreshData?.()
     } catch (err) {
       setError(err.message || 'No pude anular el movimiento.')
     } finally {

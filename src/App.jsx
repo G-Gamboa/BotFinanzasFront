@@ -194,6 +194,7 @@ export default function App() {
               api={api}
               catalogos={catalogos}
               disponibles={disponibles}
+              dashboard={dashboard}
               onRefreshData={loadAllData}
             />
           )}
@@ -223,6 +224,7 @@ export default function App() {
   <HistorialPage
     userId={userId}
     api={api}
+    onRefreshData={loadAllData}
   />
 )}
 
