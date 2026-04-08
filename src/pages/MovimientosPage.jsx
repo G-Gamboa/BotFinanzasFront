@@ -113,20 +113,64 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
         next.accountName = value === 'Transferencia' ? (transferAccounts[0] || '') : 'Efectivo'
       }
 
+      if (field === 'movDirection') {
+        if (prev.movSubtype === 'AHORRO') {
+          if (value === 'GUARDAR') {
+            next.sourceAccountName = liquidAccounts[0] || ''
+            next.targetAccountName = ''
+          }
+          if (value === 'RETIRAR') {
+            next.sourceAccountName = ''
+            next.targetAccountName = ahorroDisponibles[0]?.cuenta || liquidAccounts[0] || ''
+          }
+        }
+
+        if (prev.movSubtype === 'INVERSION') {
+          if (value === 'INVERTIR') {
+            next.sourceAccountName = liquidAccounts[0] || ''
+            next.targetAccountName = investmentAccounts[0] || ''
+          }
+          if (value === 'RETIRAR_INV') {
+            next.sourceAccountName = investmentAccounts[0] || ''
+            next.targetAccountName = liquidAccounts[0] || ''
+          }
+          if (value === 'MOVER_INV') {
+            next.sourceAccountName = investmentAccounts[0] || ''
+            next.targetAccountName = investmentAccounts[1] || investmentAccounts[0] || ''
+          }
+        }
+
+        if (prev.movSubtype === 'PRESTAMO') {
+          if (value === 'DAR') {
+            next.sourceAccountName = liquidAccounts[0] || ''
+            next.targetAccountName = ''
+          }
+          if (value === 'COBRAR') {
+            next.sourceAccountName = ''
+            next.targetAccountName = liquidAccounts[0] || ''
+          }
+        }
+      }
+
       if (field === 'movSubtype') {
         if (value === 'NORMAL') {
           next.movDirection = 'NORMAL'
+          next.sourceAccountName = liquidAccounts[0] || ''
+          next.targetAccountName = liquidAccounts[1] || liquidAccounts[0] || ''
         }
+
         if (value === 'AHORRO') {
           next.movDirection = 'GUARDAR'
           next.targetAccountName = ''
           next.sourceAccountName = liquidAccounts[0] || ''
         }
+
         if (value === 'INVERSION') {
           next.movDirection = 'INVERTIR'
           next.sourceAccountName = liquidAccounts[0] || ''
           next.targetAccountName = investmentAccounts[0] || ''
         }
+
         if (value === 'PRESTAMO') {
           next.movDirection = 'DAR'
           next.sourceAccountName = liquidAccounts[0] || ''
@@ -154,29 +198,29 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, o
     return Number(found?.saldo || 0)
   }
 
-useEffect(() => {
-  if (form.movementType !== 'MOV') return
-  if (form.movSubtype !== 'AHORRO') return
-  if (form.movDirection !== 'RETIRAR') return
-  if (!ahorroDisponibles.length) return
+  useEffect(() => {
+    if (form.movementType !== 'MOV') return
+    if (form.movSubtype !== 'AHORRO') return
+    if (form.movDirection !== 'RETIRAR') return
+    if (!ahorroDisponibles.length) return
 
-  const cuentaActualExiste = ahorroDisponibles.some(
-    (item) => item.cuenta === form.targetAccountName
-  )
+    const cuentaActualExiste = ahorroDisponibles.some(
+      (item) => item.cuenta === form.targetAccountName
+    )
 
-  if (!form.targetAccountName || !cuentaActualExiste) {
-    setForm((prev) => ({
-      ...prev,
-      targetAccountName: ahorroDisponibles[0].cuenta,
-    }))
-  }
-}, [
-  form.movementType,
-  form.movSubtype,
-  form.movDirection,
-  ahorroDisponibles,
-  form.targetAccountName,
-])
+    if (!form.targetAccountName || !cuentaActualExiste) {
+      setForm((prev) => ({
+        ...prev,
+        targetAccountName: ahorroDisponibles[0].cuenta,
+      }))
+    }
+  }, [
+    form.movementType,
+    form.movSubtype,
+    form.movDirection,
+    ahorroDisponibles,
+    form.targetAccountName,
+  ])
 
   async function submit(e) {
     e.preventDefault()
@@ -254,8 +298,8 @@ useEffect(() => {
             : prev.movementType === 'EGR'
               ? (egrCategories[0] || '')
               : '',
-        sourceAccountName: liquidAccounts[0] || '',
-        targetAccountName: liquidAccounts[1] || liquidAccounts[0] || '',
+        sourceAccountName: '',
+        targetAccountName: '',
         accountName: 'Efectivo',
         loanPersonName: loanPeople[0] || '',
       }))
@@ -427,20 +471,21 @@ useEffect(() => {
                     <select value={form.movDirection} onChange={(e) => updateField('movDirection', e.target.value)}>
                       <option value="INVERTIR">Invertir</option>
                       <option value="RETIRAR_INV">Retirar</option>
+                      <option value="MOVER_INV">Mover entre inversiones</option>
                     </select>
                   </label>
 
-                  {form.movDirection === 'INVERTIR' ? (
+                  {form.movDirection === 'INVERTIR' && (
                     <>
                       <label>
-                        <span>Cuenta origen</span>
+                        <span>Cuenta origen (sale)</span>
                         <select value={form.sourceAccountName} onChange={(e) => updateField('sourceAccountName', e.target.value)}>
                           {liquidAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
                         </select>
                       </label>
 
                       <label>
-                        <span>Cuenta inversión</span>
+                        <span>Cuenta inversión (entra)</span>
                         <select value={form.targetAccountName} onChange={(e) => updateField('targetAccountName', e.target.value)}>
                           {investmentAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
                         </select>
@@ -452,32 +497,71 @@ useEffect(() => {
                         </div>
                       ) : null}
                     </>
-                  ) : (
+                  )}
+
+                  {form.movDirection === 'RETIRAR_INV' && (
                     <>
                       <label>
-                        <span>Cuenta inversión</span>
+                        <span>Cuenta inversión (sale)</span>
                         <select value={form.sourceAccountName} onChange={(e) => updateField('sourceAccountName', e.target.value)}>
                           {investmentAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
                         </select>
                       </label>
 
                       <label>
-                        <span>Cuenta destino</span>
+                        <span>Cuenta destino (entra)</span>
                         <select value={form.targetAccountName} onChange={(e) => updateField('targetAccountName', e.target.value)}>
                           {liquidAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
+                        </select>
+                      </label>
+
+                      {form.targetAccountName ? (
+                        <div className="full-span helper-text">
+                          Disponible en destino: Q {getSaldoDisponible(form.targetAccountName).toFixed(2)}
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+
+                  {form.movDirection === 'MOVER_INV' && (
+                    <>
+                      <label>
+                        <span>Cuenta inversión origen (sale)</span>
+                        <select value={form.sourceAccountName} onChange={(e) => updateField('sourceAccountName', e.target.value)}>
+                          {investmentAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
+                        </select>
+                      </label>
+
+                      <label>
+                        <span>Cuenta inversión destino (entra)</span>
+                        <select value={form.targetAccountName} onChange={(e) => updateField('targetAccountName', e.target.value)}>
+                          {investmentAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
                         </select>
                       </label>
                     </>
                   )}
 
                   <label>
-                    <span>Monto destino</span>
+                    <span>Monto (sale)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={form.amount}
+                      onChange={(e) => updateField('amount', e.target.value)}
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    <span>Monto destino (entra)</span>
                     <input
                       type="number"
                       min="0"
                       step="0.01"
                       value={form.destinationAmount}
                       onChange={(e) => updateField('destinationAmount', e.target.value)}
+                      placeholder="Opcional"
                     />
                   </label>
                 </>
@@ -536,17 +620,19 @@ useEffect(() => {
             </>
           )}
 
-          <label>
-            <span>Monto</span>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={form.amount}
-              onChange={(e) => updateField('amount', e.target.value)}
-              required
-            />
-          </label>
+          {form.movSubtype !== 'INVERSION' && (
+            <label>
+              <span>Monto</span>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={form.amount}
+                onChange={(e) => updateField('amount', e.target.value)}
+                required
+              />
+            </label>
+          )}
 
           <label className="full-span">
             <span>Nota</span>
