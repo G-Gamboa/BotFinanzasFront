@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
 import EmptyState from '../components/EmptyState'
+import { getPaletteOptions } from '../theme'
 
 const initialAccountForm = {
   name: '',
@@ -49,6 +50,7 @@ export default function ConfiguracionPage({
 
   const cuentasItems = useMemo(() => cuentas?.items || [], [cuentas])
   const categoriasItems = useMemo(() => categorias?.items || [], [categorias])
+  const themeOptions = useMemo(() => getPaletteOptions(userId), [userId])
 
   const visibleCategories = useMemo(
     () => categoriasItems.filter((item) => item.kind === categoryFilter),
@@ -483,6 +485,7 @@ export default function ConfiguracionPage({
               <option value="movimientos">Movimientos</option>
               <option value="deudas">Deudas</option>
               <option value="dashboard">Dashboard</option>
+              <option value="historial">Historial</option>
               {canUsePrestamos ? <option value="prestamos">Préstamos</option> : null}
             </select>
           </label>
@@ -500,12 +503,17 @@ export default function ConfiguracionPage({
           </label>
 
           <label>
-            <span>Theme key</span>
-            <input
+            <span>Tema</span>
+            <select
               value={prefsForm.themeKey}
               onChange={(e) => setPrefsForm((p) => ({ ...p, themeKey: e.target.value }))}
-              placeholder="Opcional"
-            />
+            >
+              {themeOptions.map((item) => (
+                <option key={item.key} value={item.key}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
           </label>
 
           <div className="full-span form-actions">
