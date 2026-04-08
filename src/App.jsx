@@ -9,7 +9,7 @@ import PrestamosPage from './pages/PrestamosPage'
 import ConfiguracionPage from './pages/ConfiguracionPage'
 import { api } from './api/client'
 import { useTelegramMiniApp } from './hooks/useTelegramMiniApp'
-import { getPaletteByUser } from './theme'
+import { getPaletteByKey } from './theme'
 import { applyTheme } from './theme/applyTheme'
 import HistorialPage from './pages/HistorialPage'
 
@@ -59,7 +59,11 @@ export default function App() {
   const [preferencias, setPreferencias] = useState(null)
 
   const userId = tgUserId || manualUserId
-  const palette = useMemo(() => getPaletteByUser(userId), [userId])
+  const palette = useMemo(
+    () => getPaletteByKey(preferencias?.theme_key, userId),
+    [preferencias?.theme_key, userId]
+  )
+
   const userLabel = tgUserId ? normalizeUserLabel(user) : `Prueba manual · ${manualUserId}`
   const canUsePrestamos = Boolean(catalogos?.user?.can_use_loans)
 
@@ -131,7 +135,11 @@ export default function App() {
 
   const deudasActivas = useMemo(() => {
     const items = deudas?.items || []
-    return items.filter((item) => (item.status || '').toLowerCase() === 'active' && Number(item.pending_installments || 0) > 0)
+    return items.filter(
+      (item) =>
+        (item.status || '').toLowerCase() === 'active' &&
+        Number(item.pending_installments || 0) > 0
+    )
   }, [deudas])
 
   return (
@@ -221,12 +229,12 @@ export default function App() {
           )}
 
           {activeTab === 'historial' && (
-  <HistorialPage
-    userId={userId}
-    api={api}
-    onRefreshData={loadAllData}
-  />
-)}
+            <HistorialPage
+              userId={userId}
+              api={api}
+              onRefreshData={loadAllData}
+            />
+          )}
 
           {activeTab === 'prestamos' && canUsePrestamos && (
             <PrestamosPage
