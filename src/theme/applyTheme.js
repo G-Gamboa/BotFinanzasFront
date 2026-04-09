@@ -68,6 +68,12 @@ export function applyTheme(palette) {
   root.style.setProperty('--warning', theme.warning)
   root.style.setProperty('--shadow', theme.shadow)
 
+  /* aliases para compatibilidad */
+  root.style.setProperty('--panel-bg', theme.card)
+  root.style.setProperty('--panel-soft', theme.cardSoft)
+  root.style.setProperty('--border-color', theme.border)
+  root.style.setProperty('--border-soft-color', theme.borderSoft)
+
   const meta = document.querySelector('meta[name="theme-color"]')
   if (meta) {
     meta.setAttribute('content', theme.surface || theme.bg || '#0f172a')

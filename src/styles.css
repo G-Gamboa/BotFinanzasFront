@@ -21,8 +21,8 @@ html, body, #root { min-height: 100%; }
 body {
   margin: 0;
   background:
-    radial-gradient(circle at top right, rgba(244, 167, 197, .12), transparent 24%),
-    radial-gradient(circle at top left, rgba(16, 185, 129, .14), transparent 18%),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 12%, transparent), transparent 24%),
+    radial-gradient(circle at top left, color-mix(in srgb, var(--primary) 14%, transparent), transparent 18%),
     var(--bg);
   color: var(--text);
 }
@@ -150,7 +150,11 @@ select option { color: #111827; }
   padding: 16px;
 }
 .stat-card.accent {
-  background: linear-gradient(135deg, rgba(16,185,129,.18), rgba(244,167,197,.12));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary) 18%, transparent),
+    color-mix(in srgb, var(--accent) 12%, transparent)
+  );
 }
 .stat-label, .stat-help {
   display: block;
@@ -434,7 +438,7 @@ body {
 }
 
 .icon-btn.active {
-  background: rgba(16,185,129,.12);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
   border-color: var(--primary);
   color: var(--primary-soft);
 }
@@ -498,8 +502,8 @@ body {
 
 .status-chip.active {
   color: var(--primary-soft);
-  background: rgba(16,185,129,.12);
-  border-color: rgba(16,185,129,.35);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
 }
 
 .status-chip.inactive {
@@ -610,7 +614,7 @@ body {
 
 .compact-item-btn.active {
   border-color: var(--primary);
-  background: rgba(16,185,129,.1);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .compact-item-main {
@@ -675,8 +679,8 @@ body {
 }
 
 .status-chip.active {
-  color: #d1fae5;
-  background: rgba(16,185,129,.12);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary-soft);
 }
 
 .status-chip.inactive {
