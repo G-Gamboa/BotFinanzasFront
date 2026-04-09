@@ -147,7 +147,7 @@ export default function App() {
       title="Gestor Finanzas"
       subtitle={isTelegram ? 'Desarrollado por G&G' : 'Modo web para pruebas y desarrollo'}
       userLabel={userLabel}
-      userId={userId}
+      palette={palette}
       actions={
         <div className="header-actions">
           <button className="ghost-btn" onClick={() => setShowAmounts((v) => !v)}>

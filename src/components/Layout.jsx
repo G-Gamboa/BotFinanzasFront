@@ -1,22 +1,18 @@
-import { getPaletteByUser } from "../theme";
-
-export default function Layout({ title, subtitle, actions, children, userLabel, userId }) {
-  const palette = getPaletteByUser(userId);
-
+export default function Layout({ title, subtitle, actions, children, userLabel, palette }) {
   return (
     <div
       className="app-shell"
       style={{
-        background: palette.bg,
-        color: palette.text,
-        minHeight: "100vh",
+        background: 'var(--bg)',
+        color: 'var(--text)',
+        minHeight: '100vh',
       }}
     >
       <div
         style={{
-          maxWidth: "1180px",
-          margin: "0 auto",
-          padding: "12px",
+          maxWidth: '1180px',
+          margin: '0 auto',
+          padding: '12px',
         }}
       >
         <header
@@ -24,19 +20,19 @@ export default function Layout({ title, subtitle, actions, children, userLabel, 
           style={{
             border: `1px solid ${palette.border}`,
             background: palette.surface,
-            borderRadius: "1.25rem",
-            padding: "1rem 1.1rem",
+            borderRadius: '1.25rem',
+            padding: '1rem 1.1rem',
           }}
         >
           <div>
-            <p className="eyebrow" style={{ color: palette.textMuted }}>
+            <p className="eyebrow" style={{ color: palette.primarySoft || palette.textMuted }}>
               Bot Finanzas
             </p>
 
             <h1 style={{ color: palette.primary }}>{title}</h1>
 
             {subtitle ? (
-              <p className="subtitle" style={{ color: palette.textSoft }}>
+              <p className="subtitle" style={{ color: palette.textSoft || palette.textMuted }}>
                 {subtitle}
               </p>
             ) : null}
@@ -59,10 +55,10 @@ export default function Layout({ title, subtitle, actions, children, userLabel, 
           </div>
         </header>
 
-        <main className="page-content" style={{ padding: "1rem 0 0 0" }}>
+        <main className="page-content" style={{ padding: '1rem 0 0 0' }}>
           {children}
         </main>
       </div>
     </div>
-  );
+  )
 }
