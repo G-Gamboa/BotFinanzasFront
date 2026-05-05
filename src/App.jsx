@@ -40,7 +40,7 @@ function GearIcon() {
 export default function App() {
   const { isTelegram, isReady, user, userId: tgUserId } = useTelegramMiniApp()
 
-  const [manualUserId, setManualUserId] = useState('1282471582')
+  const [manualUserId, setManualUserId] = useState(import.meta.env.VITE_DEV_USER_ID || '')
   const [activeTab, setActiveTab] = useState('movimientos')
   const [showConfig, setShowConfig] = useState(false)
   const [showAmounts, setShowAmounts] = useState(false)
@@ -59,9 +59,10 @@ export default function App() {
   const [preferencias, setPreferencias] = useState(null)
 
   const userId = tgUserId || manualUserId
+  const canPrivate = Boolean(preferencias?.can_use_private_palettes)
   const palette = useMemo(
-    () => getPaletteByKey(preferencias?.theme_key, userId),
-    [preferencias?.theme_key, userId]
+    () => getPaletteByKey(preferencias?.theme_key, canPrivate),
+    [preferencias?.theme_key, canPrivate]
   )
 
   const userLabel = tgUserId ? normalizeUserLabel(user) : `Prueba manual · ${manualUserId}`

@@ -1,5 +1,3 @@
-const ADMIN_IDS = ['1282471582', '5592032215']
-
 export const paletteGreen = {
   key: 'green',
   label: 'Green',
@@ -201,39 +199,30 @@ export const ALL_PALETTES = {
   ...PRIVATE_PALETTES,
 }
 
-export function canUsePrivatePalettes(userId) {
-  return ADMIN_IDS.includes(String(userId || ''))
+// canPrivate viene del backend (PreferencesResponse.can_use_private_palettes)
+export function canUsePrivatePalettes(canPrivate) {
+  return Boolean(canPrivate)
 }
 
-export function getAvailablePalettes(userId) {
-  if (canUsePrivatePalettes(userId)) return ALL_PALETTES
+export function getAvailablePalettes(canPrivate) {
+  if (canUsePrivatePalettes(canPrivate)) return ALL_PALETTES
   return PUBLIC_PALETTES
 }
 
-export function getPaletteOptions(userId) {
-  return Object.values(getAvailablePalettes(userId)).map((palette) => ({
+export function getPaletteOptions(canPrivate) {
+  return Object.values(getAvailablePalettes(canPrivate)).map((palette) => ({
     key: palette.key,
     label: palette.label,
   }))
 }
 
-export function getDefaultPaletteKeyForUser(userId) {
-  const uid = String(userId || '')
-
-  if (uid === '1282471582') return 'green'
-  if (uid === '5592032215') return 'pink'
-
-  return 'neutral'
-}
-
-export function getPaletteByKey(themeKey, userId) {
-  const available = getAvailablePalettes(userId)
-  const fallbackKey = getDefaultPaletteKeyForUser(userId)
+export function getPaletteByKey(themeKey, canPrivate) {
+  const available = getAvailablePalettes(canPrivate)
 
   if (themeKey && available[themeKey]) return available[themeKey]
-  return available[fallbackKey] || ALL_PALETTES[fallbackKey] || paletteNeutral
+  return available['neutral'] || paletteNeutral
 }
 
-export function getPaletteByUser(userId) {
-  return getPaletteByKey(null, userId)
+export function getPaletteByUser(canPrivate) {
+  return getPaletteByKey(null, canPrivate)
 }
