@@ -187,11 +187,11 @@ export const PUBLIC_PALETTES = {
   sunset: paletteSunset,
   violet: paletteViolet,
   sand: paletteSand,
+    pink: palettePink,
 }
 
 export const PRIVATE_PALETTES = {
-  green: paletteGreen,
-  pink: palettePink,
+  green: paletteGreen
 }
 
 export const ALL_PALETTES = {
