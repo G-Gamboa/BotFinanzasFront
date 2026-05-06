@@ -64,20 +64,20 @@ export const api = {
     request('/cuentas', { method: 'POST', body: JSON.stringify(payload) }),
   patchCuenta: (accountId, payload) =>
     request(`/cuentas/${accountId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
-  activarCuenta: (accountId, userId) =>
-    request(`/cuentas/${accountId}/activar?telegram_user_id=${userId}`, { method: 'PATCH' }),
-  desactivarCuenta: (accountId, userId) =>
-    request(`/cuentas/${accountId}/desactivar?telegram_user_id=${userId}`, { method: 'PATCH' }),
+  activarCuenta: (accountId) =>
+    request(`/cuentas/${accountId}/activar`, { method: 'PATCH' }),
+  desactivarCuenta: (accountId) =>
+    request(`/cuentas/${accountId}/desactivar`, { method: 'PATCH' }),
 
   getCategoriasAdmin: (userId) => request(`/categorias/${userId}`),
   postCategoria: (payload) =>
     request('/categorias', { method: 'POST', body: JSON.stringify(payload) }),
   patchCategoria: (categoryId, payload) =>
     request(`/categorias/${categoryId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
-  activarCategoria: (categoryId, userId) =>
-    request(`/categorias/${categoryId}/activar?telegram_user_id=${userId}`, { method: 'PATCH' }),
-  desactivarCategoria: (categoryId, userId) =>
-    request(`/categorias/${categoryId}/desactivar?telegram_user_id=${userId}`, { method: 'PATCH' }),
+  activarCategoria: (categoryId) =>
+    request(`/categorias/${categoryId}/activar`, { method: 'PATCH' }),
+  desactivarCategoria: (categoryId) =>
+    request(`/categorias/${categoryId}/desactivar`, { method: 'PATCH' }),
 
   getPreferencias: (userId) => request(`/preferencias/${userId}`),
   patchPreferencias: (payload) =>

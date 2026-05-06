@@ -218,10 +218,10 @@ export default function ConfiguracionPage({
 
     try {
       if (selectedAccount.is_active) {
-        await api.desactivarCuenta(selectedAccount.id, userId)
+        await api.desactivarCuenta(selectedAccount.id)
         setMessage('Cuenta desactivada correctamente.')
       } else {
-        await api.activarCuenta(selectedAccount.id, userId)
+        await api.activarCuenta(selectedAccount.id)
         setMessage('Cuenta activada correctamente.')
       }
 
@@ -238,10 +238,10 @@ export default function ConfiguracionPage({
 
     try {
       if (selectedCategory.is_active) {
-        await api.desactivarCategoria(selectedCategory.id, userId)
+        await api.desactivarCategoria(selectedCategory.id)
         setMessage('Categoría desactivada correctamente.')
       } else {
-        await api.activarCategoria(selectedCategory.id, userId)
+        await api.activarCategoria(selectedCategory.id)
         setMessage('Categoría activada correctamente.')
       }
 
