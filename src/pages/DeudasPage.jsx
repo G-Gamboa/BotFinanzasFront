@@ -241,25 +241,25 @@ export default function DeudasPage({ userId, api, disponibles, deudas, onRefresh
       </Panel>
 
       <Panel title="Todas las deudas">
-        {deudasRows.length > 0 ? (
+        {activasRows.length > 0 ? (
           <div className="list-stack">
-            {deudasRows.map((deuda) => (
+            {activasRows.map((deuda) => (
               <div className="list-row" key={deuda.id}>
                 <div>
                   <strong>{deuda.name}</strong>
-                  <small>{String(deuda.status || '').toLowerCase() === 'active' ? 'Activa' : 'Pagada'}</small>
+                  <small>Activa</small>
                 </div>
                 <span>{q(deuda.saldo_pendiente)}</span>
               </div>
             ))}
           </div>
-        ) : <EmptyState text="No hay deudas registradas." />}
+        ) : <EmptyState text="No hay deudas activas." />}
       </Panel>
 
       <Panel title="Detalle de deudas" className="full-span">
-        {deudasRows.length > 0 ? (
+        {activasRows.length > 0 ? (
           <div className="list-stack">
-            {deudasRows.map((deuda) => (
+            {activasRows.map((deuda) => (
               <div className="debt-card debt-detail" key={`detail-${deuda.id}`}>
                 <div>
                   <strong>{deuda.name}</strong>
@@ -273,7 +273,7 @@ export default function DeudasPage({ userId, api, disponibles, deudas, onRefresh
               </div>
             ))}
           </div>
-        ) : <EmptyState text="No hay detalle para mostrar." />}
+        ) : <EmptyState text="No hay deudas activas." />}
       </Panel>
     </div>
   )
