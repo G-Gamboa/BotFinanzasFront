@@ -90,6 +90,18 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  anularLoanPayment: (loanPaymentId, payload) =>
+    request(`/loan-payments/${loanPaymentId}/anular`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  anularDebtPayment: (debtPaymentId, payload) =>
+    request(`/debt-payments/${debtPaymentId}/anular`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
   patchMovimiento: (movementId, payload) =>
     request(`/movimientos/${movementId}`, {
       method: 'PATCH',

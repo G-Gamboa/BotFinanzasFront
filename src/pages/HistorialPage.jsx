@@ -66,8 +66,14 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
   }
 
   async function handleVoid(item) {
+    const label = item.record_type === 'loan_payment'
+      ? 'cobro'
+      : item.record_type === 'debt_payment'
+      ? 'pago de deuda'
+      : 'movimiento'
+
     const reason = window.prompt(
-      `Anular movimiento #${item.id}\n\nMotivo opcional:`,
+      `Anular ${label} #${item.id}\n\nMotivo opcional:`,
       ''
     )
 
@@ -78,15 +84,21 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
     setMessage('')
 
     try {
-      await api.anularMovimiento(item.id, {
-        reason: reason.trim() || null,
-      })
+      const voidPayload = { reason: reason.trim() || null }
 
-      setMessage(`Movimiento #${item.id} anulado correctamente.`)
+      if (item.record_type === 'loan_payment') {
+        await api.anularLoanPayment(item.id, voidPayload)
+      } else if (item.record_type === 'debt_payment') {
+        await api.anularDebtPayment(item.id, voidPayload)
+      } else {
+        await api.anularMovimiento(item.id, voidPayload)
+      }
+
+      setMessage(`Registro #${item.id} anulado correctamente.`)
       await loadHistorial()
       await onRefreshData?.()
     } catch (err) {
-      setError(err.message || 'No pude anular el movimiento.')
+      setError(err.message || 'No pude anular el registro.')
     } finally {
       setVoidingId(null)
     }
@@ -141,6 +153,7 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
 
     if (item.category_name) parts.push(item.category_name)
     if (item.loan_person_name) parts.push(item.loan_person_name)
+    if (item.debt_name) parts.push(`Deuda: ${item.debt_name}`)
     if (item.payment_method) parts.push(item.payment_method)
     if (item.source_account) parts.push(`Origen: ${item.source_account}`)
     if (item.target_account) parts.push(`Destino: ${item.target_account}`)
@@ -280,7 +293,7 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
                 </div>
               ) : null}
 
-              {editingId === item.id ? (
+              {editingId === item.id && item.record_type === 'movement' ? (
                 <form className="edit-movement-form form-grid" onSubmit={(e) => submitEdit(e, item)}>
                   <label>
                     <span>Fecha</span>
@@ -356,7 +369,7 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
               ) : null}
 
               <div className="history-actions">
-                {!item.is_void ? (
+                {!item.is_void && item.record_type === 'movement' ? (
                   <button
                     className="ghost-btn"
                     type="button"
