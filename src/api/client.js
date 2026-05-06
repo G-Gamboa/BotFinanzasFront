@@ -85,10 +85,26 @@ export const api = {
 
 
   anularMovimiento: (movementId, payload) =>
-  request(`/movimientos/${movementId}/anular`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  }),
+    request(`/movimientos/${movementId}/anular`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  patchMovimiento: (movementId, payload) =>
+    request(`/movimientos/${movementId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  getLoanPeopleAdmin: (userId) => request(`/loan-people/${userId}`),
+  postLoanPerson: (payload) =>
+    request('/loan-people', { method: 'POST', body: JSON.stringify(payload) }),
+  patchLoanPerson: (personId, payload) =>
+    request(`/loan-people/${personId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  activarLoanPerson: (personId) =>
+    request(`/loan-people/${personId}/activar`, { method: 'PATCH' }),
+  desactivarLoanPerson: (personId) =>
+    request(`/loan-people/${personId}/desactivar`, { method: 'PATCH' }),
 
   getHistorial: (userId, params = {}) => {
     const search = new URLSearchParams()

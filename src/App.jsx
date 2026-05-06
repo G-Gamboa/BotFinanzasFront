@@ -56,6 +56,7 @@ export default function App() {
   const [deudas, setDeudas] = useState(null)
   const [cuentasAdmin, setCuentasAdmin] = useState(null)
   const [categoriasAdmin, setCategoriasAdmin] = useState(null)
+  const [loanPeopleAdmin, setLoanPeopleAdmin] = useState(null)
   const [preferencias, setPreferencias] = useState(null)
 
   const userId = tgUserId || manualUserId
@@ -86,6 +87,7 @@ export default function App() {
         deudasData,
         cuentasData,
         categoriasData,
+        loanPeopleData,
         preferenciasData,
       ] = await Promise.all([
         api.getHealth(),
@@ -95,6 +97,7 @@ export default function App() {
         api.getDeudas(userId),
         api.getCuentas(userId),
         api.getCategoriasAdmin(userId),
+        api.getLoanPeopleAdmin(userId),
         api.getPreferencias(userId),
       ])
 
@@ -105,6 +108,7 @@ export default function App() {
       setDeudas(deudasData)
       setCuentasAdmin(cuentasData)
       setCategoriasAdmin(categoriasData)
+      setLoanPeopleAdmin(loanPeopleData)
       setPreferencias(preferenciasData)
     } catch (err) {
       setError(err.message || 'No pude cargar la información.')
@@ -189,6 +193,7 @@ export default function App() {
           api={api}
           cuentas={cuentasAdmin}
           categorias={categoriasAdmin}
+          loanPeople={loanPeopleAdmin}
           preferencias={preferencias}
           canUsePrestamos={canUsePrestamos}
           canPrivate={canPrivate}
@@ -234,6 +239,7 @@ export default function App() {
             <HistorialPage
               userId={userId}
               api={api}
+              categorias={categoriasAdmin}
               onRefreshData={loadAllData}
             />
           )}

@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
 import EmptyState from '../components/EmptyState'
 
 const PAGE_SIZE = 50
 
-export default function HistorialPage({ userId, api, onRefreshData }) {
+export default function HistorialPage({ userId, api, categorias, onRefreshData }) {
   const [items, setItems] = useState([])
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(0)
@@ -13,6 +13,11 @@ export default function HistorialPage({ userId, api, onRefreshData }) {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [voidingId, setVoidingId] = useState(null)
+  const [editingId, setEditingId] = useState(null)
+  const [editForm, setEditForm] = useState({})
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  const categoriasItems = useMemo(() => categorias?.items || [], [categorias])
 
   const [filters, setFilters] = useState({
     date_from: '',
@@ -84,6 +89,50 @@ export default function HistorialPage({ userId, api, onRefreshData }) {
       setError(err.message || 'No pude anular el movimiento.')
     } finally {
       setVoidingId(null)
+    }
+  }
+
+  function handleEdit(item) {
+    setEditingId(item.id)
+    setEditForm({
+      movement_date: item.movement_date || '',
+      amount: String(item.amount),
+      note: item.note || '',
+      category_name: item.category_name || '',
+      payment_method: item.payment_method || '',
+    })
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditForm({})
+  }
+
+  async function submitEdit(e, item) {
+    e.preventDefault()
+    setSavingEdit(true)
+    setError('')
+    setMessage('')
+
+    try {
+      const payload = {}
+      if (editForm.movement_date) payload.movement_date = editForm.movement_date
+      if (editForm.amount !== '') payload.amount = Number(editForm.amount)
+      payload.note = editForm.note || null
+      if (item.movement_type === 'ING' || item.movement_type === 'EGR') {
+        if (editForm.category_name) payload.category_name = editForm.category_name
+        if (editForm.payment_method) payload.payment_method = editForm.payment_method
+      }
+
+      await api.patchMovimiento(item.id, payload)
+      setMessage(`Movimiento #${item.id} actualizado correctamente.`)
+      cancelEdit()
+      await loadHistorial()
+      await onRefreshData?.()
+    } catch (err) {
+      setError(err.message || 'No pude editar el movimiento.')
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -200,7 +249,7 @@ export default function HistorialPage({ userId, api, onRefreshData }) {
 
         <div className="history-list">
           {items.map((item) => (
-            <div key={item.id} className="history-card">
+            <div key={item.id} className={`history-card${item.is_void ? ' history-card-void' : ''}`}>
               <div className="history-row history-row-top">
                 <div className="history-top-left">
                   <strong>{item.movement_date}</strong>
@@ -210,6 +259,7 @@ export default function HistorialPage({ userId, api, onRefreshData }) {
                   <span className="history-chip history-chip-subtype">
                     {item.subtype}
                   </span>
+                  {item.is_void ? <span className="history-chip history-chip-void">Anulado</span> : null}
                 </div>
 
                 <div className="history-top-right">
@@ -230,12 +280,98 @@ export default function HistorialPage({ userId, api, onRefreshData }) {
                 </div>
               ) : null}
 
+              {editingId === item.id ? (
+                <form className="edit-movement-form form-grid" onSubmit={(e) => submitEdit(e, item)}>
+                  <label>
+                    <span>Fecha</span>
+                    <input
+                      type="date"
+                      value={editForm.movement_date}
+                      onChange={(e) => setEditForm((p) => ({ ...p, movement_date: e.target.value }))}
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    <span>Monto</span>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={editForm.amount}
+                      onChange={(e) => setEditForm((p) => ({ ...p, amount: e.target.value }))}
+                      required
+                    />
+                  </label>
+
+                  <label className="full-span">
+                    <span>Nota</span>
+                    <input
+                      type="text"
+                      value={editForm.note}
+                      onChange={(e) => setEditForm((p) => ({ ...p, note: e.target.value }))}
+                    />
+                  </label>
+
+                  {(item.movement_type === 'ING' || item.movement_type === 'EGR') ? (
+                    <>
+                      <label>
+                        <span>Categoría</span>
+                        <select
+                          value={editForm.category_name}
+                          onChange={(e) => setEditForm((p) => ({ ...p, category_name: e.target.value }))}
+                        >
+                          <option value="">Sin cambio</option>
+                          {categoriasItems
+                            .filter((c) => c.kind === item.movement_type && c.is_active)
+                            .map((c) => (
+                              <option key={c.id} value={c.name}>{c.name}</option>
+                            ))}
+                        </select>
+                      </label>
+
+                      <label>
+                        <span>Método de pago</span>
+                        <select
+                          value={editForm.payment_method}
+                          onChange={(e) => setEditForm((p) => ({ ...p, payment_method: e.target.value }))}
+                        >
+                          <option value="">Sin cambio</option>
+                          <option value="Efectivo">Efectivo</option>
+                          <option value="Transferencia">Transferencia</option>
+                        </select>
+                      </label>
+                    </>
+                  ) : null}
+
+                  <div className="full-span form-actions split-actions">
+                    <button className="primary-btn" type="submit" disabled={savingEdit}>
+                      {savingEdit ? 'Guardando...' : 'Guardar cambios'}
+                    </button>
+                    <button className="ghost-btn" type="button" onClick={cancelEdit}>
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+
               <div className="history-actions">
+                {!item.is_void ? (
+                  <button
+                    className="ghost-btn"
+                    type="button"
+                    onClick={() => handleEdit(item)}
+                    disabled={editingId !== null}
+                  >
+                    Editar
+                  </button>
+                ) : null}
+
                 <button
                   className="ghost-btn danger-btn"
                   type="button"
                   onClick={() => handleVoid(item)}
-                  disabled={voidingId === item.id}
+                  disabled={voidingId === item.id || item.is_void}
                 >
                   {voidingId === item.id ? 'Anulando...' : 'Anular'}
                 </button>

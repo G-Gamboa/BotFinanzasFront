@@ -24,11 +24,14 @@ const initialPrefsForm = {
   themeKey: '',
 }
 
+const initialLoanPersonForm = { name: '' }
+
 export default function ConfiguracionPage({
   userId,
   api,
   cuentas,
   categorias,
+  loanPeople,
   preferencias,
   canUsePrestamos,
   canPrivate,
@@ -37,20 +40,24 @@ export default function ConfiguracionPage({
   const [accountForm, setAccountForm] = useState(initialAccountForm)
   const [categoryForm, setCategoryForm] = useState(initialCategoryForm)
   const [prefsForm, setPrefsForm] = useState(initialPrefsForm)
+  const [loanPersonForm, setLoanPersonForm] = useState(initialLoanPersonForm)
 
   const [selectedAccountId, setSelectedAccountId] = useState('')
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
+  const [selectedLoanPersonId, setSelectedLoanPersonId] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('EGR')
 
   const [savingAccount, setSavingAccount] = useState(false)
   const [savingCategory, setSavingCategory] = useState(false)
   const [savingPrefs, setSavingPrefs] = useState(false)
+  const [savingLoanPerson, setSavingLoanPerson] = useState(false)
 
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
   const cuentasItems = useMemo(() => cuentas?.items || [], [cuentas])
   const categoriasItems = useMemo(() => categorias?.items || [], [categorias])
+  const loanPeopleItems = useMemo(() => loanPeople?.items || [], [loanPeople])
   const themeOptions = useMemo(
     () => getPaletteOptions(Boolean(canPrivate)),
     [canPrivate]
@@ -69,6 +76,11 @@ export default function ConfiguracionPage({
   const selectedCategory = useMemo(
     () => categoriasItems.find((item) => String(item.id) === String(selectedCategoryId)) || null,
     [categoriasItems, selectedCategoryId]
+  )
+
+  const selectedLoanPerson = useMemo(
+    () => loanPeopleItems.find((item) => String(item.id) === String(selectedLoanPersonId)) || null,
+    [loanPeopleItems, selectedLoanPersonId]
   )
 
   useEffect(() => {
@@ -110,6 +122,14 @@ export default function ConfiguracionPage({
       themeKey: preferencias.theme_key || '',
     })
   }, [preferencias])
+
+  useEffect(() => {
+    if (!selectedLoanPerson) {
+      setLoanPersonForm(initialLoanPersonForm)
+      return
+    }
+    setLoanPersonForm({ name: selectedLoanPerson.name })
+  }, [selectedLoanPerson])
 
   function clearMessages() {
     setMessage('')
@@ -250,6 +270,59 @@ export default function ConfiguracionPage({
       onRefreshData?.()
     } catch (err) {
       setError(err.message || 'No pude cambiar el estado de la categoría.')
+    }
+  }
+
+  function resetLoanPersonEditor() {
+    setSelectedLoanPersonId('')
+    setLoanPersonForm(initialLoanPersonForm)
+  }
+
+  async function submitLoanPerson(e) {
+    e.preventDefault()
+    clearMessages()
+    setSavingLoanPerson(true)
+
+    try {
+      const payload = {
+        telegram_user_id: Number(userId),
+        name: loanPersonForm.name,
+      }
+
+      if (selectedLoanPersonId) {
+        await api.patchLoanPerson(selectedLoanPersonId, payload)
+        setMessage('Persona actualizada correctamente.')
+      } else {
+        await api.postLoanPerson(payload)
+        setMessage('Persona creada correctamente.')
+      }
+
+      resetLoanPersonEditor()
+      onRefreshData?.()
+    } catch (err) {
+      setError(err.message || 'No pude guardar la persona.')
+    } finally {
+      setSavingLoanPerson(false)
+    }
+  }
+
+  async function toggleLoanPerson() {
+    if (!selectedLoanPerson) return
+    clearMessages()
+
+    try {
+      if (selectedLoanPerson.is_active) {
+        await api.desactivarLoanPerson(selectedLoanPerson.id)
+        setMessage('Persona desactivada correctamente.')
+      } else {
+        await api.activarLoanPerson(selectedLoanPerson.id)
+        setMessage('Persona activada correctamente.')
+      }
+
+      resetLoanPersonEditor()
+      onRefreshData?.()
+    } catch (err) {
+      setError(err.message || 'No pude cambiar el estado de la persona.')
     }
   }
 
@@ -464,6 +537,71 @@ export default function ConfiguracionPage({
           </form>
         </Panel>
       </div>
+
+      {canUsePrestamos ? (
+        <Panel title="Personas de préstamos">
+          {!loanPeopleItems.length ? (
+            <EmptyState text="No hay personas todavía." />
+          ) : (
+            <>
+              <div className="config-select-row">
+                <label>
+                  <span>Selecciona una persona para editar</span>
+                  <select value={selectedLoanPersonId} onChange={(e) => setSelectedLoanPersonId(e.target.value)}>
+                    <option value="">Nueva persona</option>
+                    {loanPeopleItems.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} · {item.is_active ? 'Activa' : 'Inactiva'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {selectedLoanPerson ? (
+                <div className="selected-meta-row">
+                  <span className={`status-chip ${selectedLoanPerson.is_active ? 'active' : 'inactive'}`}>
+                    {selectedLoanPerson.is_active ? 'Activa' : 'Inactiva'}
+                  </span>
+                </div>
+              ) : null}
+            </>
+          )}
+
+          <form className="form-grid" onSubmit={submitLoanPerson}>
+            <label>
+              <span>Nombre</span>
+              <input
+                value={loanPersonForm.name}
+                onChange={(e) => setLoanPersonForm((p) => ({ ...p, name: e.target.value }))}
+                required
+              />
+            </label>
+
+            <div className="full-span form-actions split-actions">
+              <button className="primary-btn" type="submit" disabled={savingLoanPerson}>
+                {savingLoanPerson ? 'Guardando...' : selectedLoanPerson ? 'Actualizar persona' : 'Crear persona'}
+              </button>
+
+              {selectedLoanPerson ? (
+                <>
+                  <button className="ghost-btn" type="button" onClick={resetLoanPersonEditor}>
+                    Limpiar
+                  </button>
+
+                  <button
+                    className="ghost-btn"
+                    type="button"
+                    onClick={toggleLoanPerson}
+                  >
+                    {selectedLoanPerson.is_active ? 'Desactivar' : 'Activar'}
+                  </button>
+                </>
+              ) : null}
+            </div>
+          </form>
+        </Panel>
+      ) : null}
 
       <Panel title="Preferencias">
         <form className="form-grid" onSubmit={submitPreferences}>
