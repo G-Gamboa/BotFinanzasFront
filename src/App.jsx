@@ -59,7 +59,7 @@ export default function App() {
   const [preferencias, setPreferencias] = useState(null)
 
   const userId = tgUserId || manualUserId
-  const canPrivate = Boolean(preferencias?.can_use_private_palettes)
+  const canPrivate = Boolean(catalogos?.user?.can_use_private_palettes)
   const palette = useMemo(
     () => getPaletteByKey(preferencias?.theme_key, canPrivate),
     [preferencias?.theme_key, canPrivate]
@@ -191,6 +191,7 @@ export default function App() {
           categorias={categoriasAdmin}
           preferencias={preferencias}
           canUsePrestamos={canUsePrestamos}
+          canPrivate={canPrivate}
           onRefreshData={loadAllData}
         />
       ) : (

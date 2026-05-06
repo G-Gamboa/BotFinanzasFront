@@ -31,6 +31,7 @@ export default function ConfiguracionPage({
   categorias,
   preferencias,
   canUsePrestamos,
+  canPrivate,
   onRefreshData,
 }) {
   const [accountForm, setAccountForm] = useState(initialAccountForm)
@@ -51,8 +52,8 @@ export default function ConfiguracionPage({
   const cuentasItems = useMemo(() => cuentas?.items || [], [cuentas])
   const categoriasItems = useMemo(() => categorias?.items || [], [categorias])
   const themeOptions = useMemo(
-    () => getPaletteOptions(Boolean(preferencias?.can_use_private_palettes)),
-    [preferencias?.can_use_private_palettes]
+    () => getPaletteOptions(Boolean(canPrivate)),
+    [canPrivate]
   )
 
   const visibleCategories = useMemo(
