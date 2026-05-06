@@ -3,8 +3,12 @@ import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
 import EmptyState from '../components/EmptyState'
 
-export default function HistorialPage({ userId, api,onRefreshData }) {
+const PAGE_SIZE = 50
+
+export default function HistorialPage({ userId, api, onRefreshData }) {
   const [items, setItems] = useState([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -14,18 +18,21 @@ export default function HistorialPage({ userId, api,onRefreshData }) {
     date_from: '',
     date_to: '',
     movement_type: '',
-    limit: 50,
+    note: '',
+    limit: PAGE_SIZE,
   })
 
-  async function loadHistorial() {
+  async function loadHistorial(currentPage = page, currentFilters = filters) {
     if (!userId) return
-
     setLoading(true)
     setError('')
-
     try {
-      const data = await api.getHistorial(userId, filters)
+      const data = await api.getHistorial(userId, {
+        ...currentFilters,
+        offset: currentPage * PAGE_SIZE,
+      })
       setItems(data.items || [])
+      setTotalCount(data.total_count ?? data.total ?? 0)
     } catch (err) {
       setError(err.message || 'No pude cargar el historial.')
     } finally {
@@ -34,7 +41,8 @@ export default function HistorialPage({ userId, api,onRefreshData }) {
   }
 
   useEffect(() => {
-    loadHistorial()
+    loadHistorial(0, filters)
+    setPage(0)
   }, [userId])
 
   function updateFilter(field, value) {
@@ -43,7 +51,13 @@ export default function HistorialPage({ userId, api,onRefreshData }) {
 
   function applyFilters(e) {
     e.preventDefault()
-    loadHistorial()
+    setPage(0)
+    loadHistorial(0, filters)
+  }
+
+  function goToPage(newPage) {
+    setPage(newPage)
+    loadHistorial(newPage, filters)
   }
 
   async function handleVoid(item) {
@@ -124,14 +138,13 @@ export default function HistorialPage({ userId, api,onRefreshData }) {
             </select>
           </label>
 
-          <label>
-            <span>Límite</span>
+          <label className="full-span">
+            <span>Buscar en nota</span>
             <input
-              type="number"
-              min="1"
-              max="200"
-              value={filters.limit}
-              onChange={(e) => updateFilter('limit', e.target.value)}
+              type="text"
+              value={filters.note}
+              onChange={(e) => updateFilter('note', e.target.value)}
+              placeholder="Texto parcial..."
             />
           </label>
 
@@ -144,16 +157,10 @@ export default function HistorialPage({ userId, api,onRefreshData }) {
               className="ghost-btn"
               type="button"
               onClick={() => {
-                const next = {
-                  date_from: '',
-                  date_to: '',
-                  movement_type: '',
-                  limit: 50,
-                }
+                const next = { date_from: '', date_to: '', movement_type: '', note: '', limit: PAGE_SIZE }
                 setFilters(next)
-                setTimeout(() => {
-                  loadHistorial()
-                }, 0)
+                setPage(0)
+                loadHistorial(0, next)
               }}
             >
               Limpiar
@@ -168,6 +175,28 @@ export default function HistorialPage({ userId, api,onRefreshData }) {
         {!loading && items.length === 0 ? (
           <EmptyState text="No hay movimientos en este rango." />
         ) : null}
+
+        {totalCount > 0 && (
+          <div className="pagination-bar">
+            <button
+              className="ghost-btn"
+              onClick={() => goToPage(page - 1)}
+              disabled={page === 0 || loading}
+            >
+              ← Anterior
+            </button>
+            <span className="pagination-info">
+              Página {page + 1} de {Math.ceil(totalCount / PAGE_SIZE)} · {totalCount} registros
+            </span>
+            <button
+              className="ghost-btn"
+              onClick={() => goToPage(page + 1)}
+              disabled={(page + 1) * PAGE_SIZE >= totalCount || loading}
+            >
+              Siguiente →
+            </button>
+          </div>
+        )}
 
         <div className="history-list">
           {items.map((item) => (
