@@ -3,7 +3,7 @@ import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
 import EmptyState from '../components/EmptyState'
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = 15
 
 export default function HistorialPage({ userId, api, categorias, onRefreshData }) {
   const [items, setItems] = useState([])
@@ -232,17 +232,17 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
               onClick={() => goToPage(page - 1)}
               disabled={page === 0 || loading}
             >
-              ← Anterior
+              ←
             </button>
             <span className="pagination-info">
-              Página {page + 1} de {Math.ceil(totalCount / PAGE_SIZE)} · {totalCount} registros
+              Página {page + 1} de {Math.ceil(totalCount / PAGE_SIZE)} · {totalCount} regs
             </span>
             <button
               className="ghost-btn"
               onClick={() => goToPage(page + 1)}
               disabled={(page + 1) * PAGE_SIZE >= totalCount || loading}
             >
-              Siguiente →
+             →
             </button>
           </div>
         )}
