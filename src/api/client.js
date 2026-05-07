@@ -118,6 +118,14 @@ export const api = {
   desactivarLoanPerson: (personId) =>
     request(`/loan-people/${personId}/desactivar`, { method: 'PATCH' }),
 
+  getPeriodoResumen: (userId, params = {}) => {
+    const search = new URLSearchParams()
+    if (params.date_from) search.set('date_from', params.date_from)
+    if (params.date_to) search.set('date_to', params.date_to)
+    const qs = search.toString()
+    return request(`/dashboard/${userId}/periodo${qs ? `?${qs}` : ''}`)
+  },
+
   getHistorial: (userId, params = {}) => {
     const search = new URLSearchParams()
     if (params.date_from) search.set('date_from', params.date_from)

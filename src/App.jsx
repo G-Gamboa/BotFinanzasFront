@@ -228,6 +228,8 @@ export default function App() {
 
           {activeTab === 'dashboard' && (
             <DashboardPage
+              userId={userId}
+              api={api}
               loading={loading}
               palette={palette}
               dashboard={dashboard}

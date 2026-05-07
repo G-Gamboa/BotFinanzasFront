@@ -5,14 +5,37 @@ import GastosChart from '../components/GastosCharts'
 import LoadingBlock from '../components/LoadingBlock'
 import EmptyState from '../components/EmptyState'
 
-export default function DashboardPage({ loading, palette, dashboard, showAmounts }) {
-  const [chartPeriod, setChartPeriod] = useState('mes')
+export default function DashboardPage({ userId, api, loading, palette, dashboard, showAmounts }) {
+  const [period, setPeriod] = useState('mes')
 
-  const chartSource = useMemo(() => {
-    if (chartPeriod === 'dia') return dashboard?.resumen_dia || {}
-    if (chartPeriod === 'semana') return dashboard?.resumen_semana || {}
+  // Custom date range filter
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [customResult, setCustomResult] = useState(null)
+  const [customLoading, setCustomLoading] = useState(false)
+  const [customError, setCustomError] = useState('')
+
+  const periodSource = useMemo(() => {
+    if (period === 'dia') return dashboard?.resumen_dia || {}
+    if (period === 'semana') return dashboard?.resumen_semana || {}
     return dashboard?.resumen_mes || {}
-  }, [chartPeriod, dashboard])
+  }, [period, dashboard])
+
+  async function fetchPeriodo(e) {
+    e.preventDefault()
+    if (!dateFrom || !dateTo) return
+    setCustomLoading(true)
+    setCustomError('')
+    setCustomResult(null)
+    try {
+      const result = await api.getPeriodoResumen(userId, { date_from: dateFrom, date_to: dateTo })
+      setCustomResult(result)
+    } catch (err) {
+      setCustomError(err.message || 'No pude cargar el período.')
+    } finally {
+      setCustomLoading(false)
+    }
+  }
 
   if (loading) return <LoadingBlock text="Cargando dashboard..." />
   if (!dashboard) return <EmptyState text="No hay datos para mostrar." />
@@ -25,8 +48,11 @@ export default function DashboardPage({ loading, palette, dashboard, showAmounts
   const tc = dashboard?.networth?.tc ?? 0
   const inversionesGtq = Number(inversionesUsd || 0) * Number(tc || 0)
 
+  const periodLabel = period === 'dia' ? 'Día' : period === 'semana' ? 'Semana' : 'Mes'
+
   return (
     <div style={{ display: 'grid', gap: '1rem' }}>
+      {/* ── Top stats ── */}
       <div
         className="stats-grid"
         style={{
@@ -53,22 +79,12 @@ export default function DashboardPage({ loading, palette, dashboard, showAmounts
           alignItems: 'start',
         }}
       >
+        {/* ── Left column ── */}
         <div style={{ display: 'grid', gap: '1rem' }}>
           <SectionCard palette={palette} title="Liquidez">
             <div style={{ display: 'grid', gap: '0.7rem' }}>
               {Object.entries(dashboard?.networth?.liquid_map || {}).map(([cuenta, saldo]) => (
-                <div
-                  key={cuenta}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '0.85rem 1rem',
-                    borderRadius: '1rem',
-                    border: `1px solid ${palette.borderSoft || palette.border}`,
-                    background: palette.cardSoft,
-                  }}
-                >
+                <div key={cuenta} style={rowBox(palette)}>
                   <span style={{ color: palette.text, fontWeight: 700 }}>{cuenta}</span>
                   <span style={{ color: palette.primary, fontWeight: 800 }}>
                     {money(saldo, showAmounts)}
@@ -108,21 +124,18 @@ export default function DashboardPage({ loading, palette, dashboard, showAmounts
                     </span>
                   </div>
                 ))}
-
                 <div style={{ ...rowBox(palette), marginTop: '0.35rem' }}>
                   <span style={{ color: palette.textSoft, fontWeight: 700 }}>Total inversiones (USD)</span>
                   <span style={{ color: palette.text, fontWeight: 800 }}>
                     {moneyUsdVisible(inversionesUsd, showAmounts)}
                   </span>
                 </div>
-
                 <div style={rowBox(palette)}>
                   <span style={{ color: palette.textSoft, fontWeight: 700 }}>Equivalente GTQ</span>
                   <span style={{ color: palette.text, fontWeight: 800 }}>
                     {moneyVisible(inversionesGtq, showAmounts)}
                   </span>
                 </div>
-
                 <div style={rowBox(palette)}>
                   <span style={{ color: palette.textSoft, fontWeight: 700 }}>TC usado</span>
                   <span style={{ color: palette.text, fontWeight: 800 }}>
@@ -134,93 +147,135 @@ export default function DashboardPage({ loading, palette, dashboard, showAmounts
           </SectionCard>
         </div>
 
+        {/* ── Right column ── */}
         <div style={{ display: 'grid', gap: '1rem' }}>
-          <SectionCard palette={palette} title="Resumen del día">
-            <div style={{ display: 'grid', gap: '0.6rem' }}>
-              <Row
-                label="Ingresos"
-                value={money(dashboard?.resumen_dia?.ingresos || 0, showAmounts)}
-                palette={palette}
-              />
-              <Row
-                label="Egresos"
-                value={money(dashboard?.resumen_dia?.egresos || 0, showAmounts)}
-                palette={palette}
-              />
-              <Row
-                label="Balance"
-                value={money(dashboard?.resumen_dia?.balance || 0, showAmounts)}
-                palette={palette}
-              />
-            </div>
-          </SectionCard>
-
-          <SectionCard palette={palette} title="Resumen semanal">
-            <div style={{ display: 'grid', gap: '0.6rem' }}>
-              <Row
-                label="Ingresos"
-                value={money(dashboard?.resumen_semana?.ingresos || 0, showAmounts)}
-                palette={palette}
-              />
-              <Row
-                label="Egresos"
-                value={money(dashboard?.resumen_semana?.egresos || 0, showAmounts)}
-                palette={palette}
-              />
-              <Row
-                label="Balance"
-                value={money(dashboard?.resumen_semana?.balance || 0, showAmounts)}
-                palette={palette}
-              />
-            </div>
-          </SectionCard>
-
-          <SectionCard palette={palette} title="Resumen del mes">
-            <div style={{ display: 'grid', gap: '0.6rem' }}>
-              <Row
-                label="Ingresos"
-                value={money(dashboard?.resumen_mes?.ingresos || 0, showAmounts)}
-                palette={palette}
-              />
-              <Row
-                label="Egresos"
-                value={money(dashboard?.resumen_mes?.egresos || 0, showAmounts)}
-                palette={palette}
-              />
-              <Row
-                label="Balance"
-                value={money(dashboard?.resumen_mes?.balance || 0, showAmounts)}
-                palette={palette}
-              />
-            </div>
-          </SectionCard>
-
-          <SectionCard palette={palette} title="Gastos por categoría" accent>
-            <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-              {['dia', 'semana', 'mes'].map((period) => (
+          {/* Single tabbed period summary */}
+          <SectionCard palette={palette} title="Resumen">
+            {/* Period tabs */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+              {['dia', 'semana', 'mes'].map((p) => (
                 <button
-                  key={period}
-                  onClick={() => setChartPeriod(period)}
-                  style={pillStyle(period === chartPeriod, palette)}
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  style={pillStyle(p === period, palette)}
                 >
-                  {period === 'dia' ? 'Día' : period === 'semana' ? 'Semana' : 'Mes'}
+                  {p === 'dia' ? 'Día' : p === 'semana' ? 'Semana' : 'Mes'}
                 </button>
               ))}
             </div>
 
-            <GastosChart palette={palette} data={chartSource?.gastos_por_categoria || {}} />
+            <div style={{ display: 'grid', gap: '0.6rem', marginBottom: '1.2rem' }}>
+              <Row label="Ingresos" value={money(periodSource?.ingresos || 0, showAmounts)} palette={palette} />
+              <Row label="Egresos"  value={money(periodSource?.egresos  || 0, showAmounts)} palette={palette} />
+              <Row
+                label="Balance"
+                value={money(periodSource?.balance || 0, showAmounts)}
+                palette={palette}
+                highlight={Number(periodSource?.balance || 0) >= 0 ? palette.primary : '#e53935'}
+              />
+            </div>
+
+            {/* Chart using same period */}
+            <div style={{ borderTop: `1px solid ${palette.borderSoft || palette.border}`, paddingTop: '1rem' }}>
+              <div style={{ color: palette.textSoft, fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.7rem' }}>
+                Gastos por categoría — {periodLabel}
+              </div>
+              <GastosChart palette={palette} data={periodSource?.gastos_por_categoria || {}} />
+            </div>
           </SectionCard>
         </div>
       </div>
+
+      {/* ── Custom date range filter ── */}
+      <SectionCard palette={palette} title="Filtrar por fechas">
+        <form
+          onSubmit={fetchPeriodo}
+          style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', alignItems: 'end' }}
+        >
+          <label>
+            <span style={{ display: 'block', color: palette.textSoft, fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.3rem' }}>
+              Desde
+            </span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              required
+              style={inputStyle(palette)}
+            />
+          </label>
+
+          <label>
+            <span style={{ display: 'block', color: palette.textSoft, fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.3rem' }}>
+              Hasta
+            </span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              required
+              style={inputStyle(palette)}
+            />
+          </label>
+
+          <button
+            type="submit"
+            disabled={customLoading}
+            style={{
+              padding: '0.7rem 1.2rem',
+              borderRadius: '999px',
+              border: 'none',
+              background: palette.primary,
+              color: '#fff',
+              fontWeight: 700,
+              cursor: customLoading ? 'not-allowed' : 'pointer',
+              opacity: customLoading ? 0.6 : 1,
+            }}
+          >
+            {customLoading ? 'Buscando...' : 'Buscar'}
+          </button>
+        </form>
+
+        {customError ? (
+          <div style={{ marginTop: '0.8rem', color: '#e53935', fontWeight: 700 }}>{customError}</div>
+        ) : null}
+
+        {customResult ? (
+          <div style={{ marginTop: '1rem', display: 'grid', gap: '0.8rem' }}>
+            <div style={{ color: palette.textSoft, fontSize: '0.82rem', fontWeight: 600 }}>
+              {customResult.fecha_inicio} → {customResult.fecha_fin}
+            </div>
+            <div style={{ display: 'grid', gap: '0.6rem' }}>
+              <Row label="Ingresos" value={money(customResult.ingresos, showAmounts)} palette={palette} />
+              <Row label="Egresos"  value={money(customResult.egresos,  showAmounts)} palette={palette} />
+              <Row
+                label="Balance"
+                value={money(customResult.balance, showAmounts)}
+                palette={palette}
+                highlight={Number(customResult.balance) >= 0 ? palette.primary : '#e53935'}
+              />
+            </div>
+
+            {Object.keys(customResult.gastos_por_categoria || {}).length > 0 ? (
+              <div style={{ borderTop: `1px solid ${palette.borderSoft || palette.border}`, paddingTop: '0.8rem' }}>
+                <div style={{ color: palette.textSoft, fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.7rem' }}>
+                  Gastos por categoría
+                </div>
+                <GastosChart palette={palette} data={customResult.gastos_por_categoria} />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </SectionCard>
     </div>
   )
 }
 
-function Row({ label, value, palette }) {
+function Row({ label, value, palette, highlight }) {
   return (
     <div style={rowBox(palette)}>
       <span style={{ color: palette.textSoft, fontWeight: 700 }}>{label}</span>
-      <span style={{ color: palette.text, fontWeight: 800 }}>{value}</span>
+      <span style={{ color: highlight || palette.text, fontWeight: 800 }}>{value}</span>
     </div>
   )
 }
@@ -238,13 +293,26 @@ function rowBox(palette) {
 
 function pillStyle(active, palette) {
   return {
-    padding: '0.65rem 0.9rem',
+    padding: '0.5rem 1rem',
     borderRadius: '999px',
     border: `1px solid ${active ? palette.primary : palette.border}`,
     background: active ? palette.primary : palette.cardSoft,
     color: active ? '#fff' : palette.text,
     fontWeight: 700,
     cursor: 'pointer',
+    fontSize: '0.9rem',
+  }
+}
+
+function inputStyle(palette) {
+  return {
+    width: '100%',
+    padding: '0.65rem 0.8rem',
+    borderRadius: '0.7rem',
+    border: `1px solid ${palette.border}`,
+    background: palette.cardSoft,
+    color: palette.text,
+    fontSize: '0.9rem',
   }
 }
 
