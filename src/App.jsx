@@ -198,6 +198,7 @@ export default function App() {
           preferencias={preferencias}
           canUsePrestamos={canUsePrestamos}
           canPrivate={canPrivate}
+          isAdmin={Boolean(catalogos?.user?.is_admin)}
           onRefreshData={loadAllData}
         />
       ) : (

@@ -39,6 +39,7 @@ export default function ConfiguracionPage({
   preferencias,
   canUsePrestamos,
   canPrivate,
+  isAdmin = false,
   onRefreshData,
 }) {
   const [accountForm, setAccountForm] = useState(initialAccountForm)
@@ -62,6 +63,14 @@ export default function ConfiguracionPage({
   const [savingLoanPerson, setSavingLoanPerson] = useState(false)
   const [savingDebt, setSavingDebt] = useState(false)
   const [savingGoal, setSavingGoal] = useState(false)
+  const [savingNewUser, setSavingNewUser] = useState(false)
+  const [newUserForm, setNewUserForm] = useState({
+    telegram_user_id: '',
+    first_name: '',
+    last_name: '',
+    username: '',
+    can_use_loans: false,
+  })
 
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -450,6 +459,27 @@ export default function ConfiguracionPage({
       onRefreshData?.()
     } catch (err) {
       setError(err.message || 'No pude cambiar el estado de la persona.')
+    }
+  }
+
+  async function submitNewUser(e) {
+    e.preventDefault()
+    clearMessages()
+    setSavingNewUser(true)
+    try {
+      const result = await api.postCrearUsuario({
+        telegram_user_id: Number(newUserForm.telegram_user_id),
+        first_name: newUserForm.first_name.trim() || null,
+        last_name: newUserForm.last_name.trim() || null,
+        username: newUserForm.username.trim() || null,
+        can_use_loans: newUserForm.can_use_loans,
+      })
+      setMessage(`✅ Usuario creado. ID interno: ${result.id} · Telegram ID: ${result.telegram_user_id}`)
+      setNewUserForm({ telegram_user_id: '', first_name: '', last_name: '', username: '', can_use_loans: false })
+    } catch (err) {
+      setError(err.message || 'No pude crear el usuario.')
+    } finally {
+      setSavingNewUser(false)
     }
   }
 
@@ -914,6 +944,69 @@ export default function ConfiguracionPage({
           </div>
         </form>
       </Panel>
+
+      {isAdmin ? (
+        <Panel title="👤 Crear usuario">
+          <form className="form-grid" onSubmit={submitNewUser}>
+            <label>
+              <span>Telegram User ID</span>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={newUserForm.telegram_user_id}
+                onChange={(e) => setNewUserForm((p) => ({ ...p, telegram_user_id: e.target.value }))}
+                placeholder="Ej. 123456789"
+                required
+              />
+            </label>
+
+            <label>
+              <span>Nombre</span>
+              <input
+                value={newUserForm.first_name}
+                onChange={(e) => setNewUserForm((p) => ({ ...p, first_name: e.target.value }))}
+                placeholder="Opcional"
+              />
+            </label>
+
+            <label>
+              <span>Apellido</span>
+              <input
+                value={newUserForm.last_name}
+                onChange={(e) => setNewUserForm((p) => ({ ...p, last_name: e.target.value }))}
+                placeholder="Opcional"
+              />
+            </label>
+
+            <label>
+              <span>Username (sin @)</span>
+              <input
+                value={newUserForm.username}
+                onChange={(e) => setNewUserForm((p) => ({ ...p, username: e.target.value.replace('@', '') }))}
+                placeholder="Opcional"
+              />
+            </label>
+
+            <label>
+              <span>Módulo de préstamos</span>
+              <select
+                value={newUserForm.can_use_loans ? 'si' : 'no'}
+                onChange={(e) => setNewUserForm((p) => ({ ...p, can_use_loans: e.target.value === 'si' }))}
+              >
+                <option value="no">No</option>
+                <option value="si">Sí</option>
+              </select>
+            </label>
+
+            <div className="full-span form-actions">
+              <button className="primary-btn" type="submit" disabled={savingNewUser}>
+                {savingNewUser ? 'Creando...' : 'Crear usuario'}
+              </button>
+            </div>
+          </form>
+        </Panel>
+      ) : null}
     </div>
   )
 }
