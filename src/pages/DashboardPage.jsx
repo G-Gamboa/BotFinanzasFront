@@ -136,18 +136,18 @@ export default function DashboardPage({ userId, api, loading, palette, dashboard
 
           {(dashboard?.prestamos_resumen?.items || []).length > 0 ? (
             <SectionCard palette={palette} title="Préstamos pendientes">
-              <div style={{ display: 'grid', gap: '0.5rem' }}>
+              <div style={{ display: 'grid', gap: '0.6rem' }}>
                 {dashboard.prestamos_resumen.items.map((p) => (
-                  <div key={p.person}>
+                  <div key={p.person} style={{ display: 'grid', gap: '0.3rem' }}>
                     <div style={rowBox(palette)}>
                       <span style={{ color: palette.text, fontWeight: 700 }}>{p.person}</span>
                       <span style={{ color: palette.primary, fontWeight: 800 }}>{moneyVisible(p.total_balance, showAmounts)}</span>
                     </div>
                     {p.concepts.length > 1 ? (
-                      <div style={{ paddingLeft: '0.5rem', display: 'grid', gap: '0.25rem', marginTop: '0.25rem' }}>
+                      <div style={{ paddingLeft: '0.7rem', display: 'grid', gap: '0.2rem' }}>
                         {p.concepts.map((c) => (
                           <div key={c.concept} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: palette.textSoft }}>
-                            <span>{c.concept}</span>
+                            <span>· {c.concept}</span>
                             <span>{moneyVisible(c.balance, showAmounts)}</span>
                           </div>
                         ))}
@@ -155,6 +155,46 @@ export default function DashboardPage({ userId, api, loading, palette, dashboard
                     ) : null}
                   </div>
                 ))}
+              </div>
+            </SectionCard>
+          ) : null}
+
+          {(dashboard?.savings_goals || []).length > 0 ? (
+            <SectionCard palette={palette} title="Metas de ahorro" accent>
+              <div style={{ display: 'grid', gap: '0.9rem' }}>
+                {dashboard.savings_goals.map((g) => {
+                  const pct = g.target_amount > 0
+                    ? Math.min(100, (g.current_amount / g.target_amount) * 100)
+                    : 0
+                  const done = pct >= 100
+                  return (
+                    <div key={g.id} style={{ display: 'grid', gap: '0.45rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem' }}>
+                        <span style={{ color: palette.text, fontWeight: 700 }}>
+                          {done ? '✅ ' : '🎯 '}{g.name}
+                        </span>
+                        {g.account_name ? (
+                          <span style={{ fontSize: '0.75rem', color: palette.textSoft }}>{g.account_name}</span>
+                        ) : null}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: palette.textSoft }}>
+                        <span>{showAmounts ? moneyVisible(g.current_amount) : 'Q ••••'}</span>
+                        <span>de {showAmounts ? moneyVisible(g.target_amount) : 'Q ••••'} · {showAmounts ? `${pct.toFixed(0)}%` : '••%'}</span>
+                      </div>
+                      <div style={{ height: 10, borderRadius: 999, background: palette.surface || palette.card, overflow: 'hidden' }}>
+                        <div style={{
+                          width: `${pct}%`,
+                          height: '100%',
+                          background: done
+                            ? '#43a047'
+                            : `linear-gradient(90deg, ${palette.primary}, ${palette.accent || palette.primarySoft})`,
+                          borderRadius: 999,
+                          transition: 'width 0.4s ease',
+                        }} />
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </SectionCard>
           ) : null}
