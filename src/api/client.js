@@ -137,8 +137,11 @@ export const api = {
   deleteSavingsGoal: (goalId) =>
     request(`/savings-goals/${goalId}`, { method: 'DELETE' }),
 
+  getAdminUsuarios: () => request('/admin/usuarios'),
   postCrearUsuario: (payload) =>
     request('/admin/usuarios', { method: 'POST', body: JSON.stringify(payload) }),
+  patchAdminUsuario: (userId, payload) =>
+    request(`/admin/usuarios/${userId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
   getHistorial: (userId, params = {}) => {
     const search = new URLSearchParams()

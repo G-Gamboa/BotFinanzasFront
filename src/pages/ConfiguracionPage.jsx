@@ -71,6 +71,8 @@ export default function ConfiguracionPage({
     username: '',
     can_use_loans: false,
   })
+  const [adminUsers, setAdminUsers] = useState(null)
+  const [togglingUserId, setTogglingUserId] = useState(null)
 
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -462,6 +464,34 @@ export default function ConfiguracionPage({
     }
   }
 
+  async function loadAdminUsers() {
+    try {
+      const data = await api.getAdminUsuarios()
+      setAdminUsers(data?.items || [])
+    } catch {
+      setAdminUsers([])
+    }
+  }
+
+  useEffect(() => {
+    if (isAdmin) loadAdminUsers()
+  }, [isAdmin])
+
+  async function toggleUsuario(user) {
+    setTogglingUserId(user.id)
+    clearMessages()
+    try {
+      await api.patchAdminUsuario(user.id, { is_active: !user.is_active })
+      setAdminUsers((prev) =>
+        prev.map((u) => u.id === user.id ? { ...u, is_active: !u.is_active } : u)
+      )
+    } catch (err) {
+      setError(err.message || 'No pude cambiar el estado del usuario.')
+    } finally {
+      setTogglingUserId(null)
+    }
+  }
+
   async function submitNewUser(e) {
     e.preventDefault()
     clearMessages()
@@ -476,6 +506,7 @@ export default function ConfiguracionPage({
       })
       setMessage(`✅ Usuario creado. ID interno: ${result.id} · Telegram ID: ${result.telegram_user_id}`)
       setNewUserForm({ telegram_user_id: '', first_name: '', last_name: '', username: '', can_use_loans: false })
+      loadAdminUsers()
     } catch (err) {
       setError(err.message || 'No pude crear el usuario.')
     } finally {
@@ -944,6 +975,60 @@ export default function ConfiguracionPage({
           </div>
         </form>
       </Panel>
+
+      {isAdmin ? (
+        <Panel title="👥 Usuarios">
+          {adminUsers === null ? (
+            <div style={{ color: 'var(--text-soft)', fontSize: '0.9rem' }}>Cargando usuarios…</div>
+          ) : adminUsers.length === 0 ? (
+            <EmptyState text="No hay usuarios registrados." />
+          ) : (
+            <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '1rem' }}>
+              {adminUsers.map((u) => {
+                const label = [u.first_name, u.last_name].filter(Boolean).join(' ') || `ID ${u.telegram_user_id}`
+                const sub = u.username ? `@${u.username}` : `TG: ${u.telegram_user_id}`
+                const isSelf = String(u.telegram_user_id) === String(userId)
+                return (
+                  <div
+                    key={u.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '0.65rem 0.9rem',
+                      borderRadius: '0.8rem',
+                      background: 'var(--card-soft)',
+                      border: '1px solid var(--border-soft)',
+                      gap: '0.5rem',
+                      opacity: u.is_active ? 1 : 0.55,
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', minWidth: 0 }}>
+                      <span style={{ fontWeight: 700, color: 'var(--text)', fontSize: '0.9rem' }}>{label}</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-soft)' }}>
+                        {sub}{u.can_use_loans ? ' · préstamos' : ''}
+                        {isSelf ? ' · tú' : ''}
+                      </span>
+                    </div>
+                    {!isSelf ? (
+                      <button
+                        className={u.is_active ? 'ghost-btn' : 'primary-btn'}
+                        style={{ fontSize: '0.82rem', padding: '0.35rem 0.8rem', whiteSpace: 'nowrap' }}
+                        disabled={togglingUserId === u.id}
+                        onClick={() => toggleUsuario(u)}
+                      >
+                        {togglingUserId === u.id ? '…' : u.is_active ? 'Desactivar' : 'Activar'}
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-soft)' }}>Admin</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Panel>
+      ) : null}
 
       {isAdmin ? (
         <Panel title="👤 Crear usuario">
