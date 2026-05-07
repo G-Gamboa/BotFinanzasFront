@@ -10,6 +10,13 @@ function q(value) {
   return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(n)
 }
 
+const FREQ_LABELS = {
+  weekly: 'Semanal',
+  biweekly: 'Quincenal',
+  monthly: 'Mensual',
+  none: 'Sin fecha fija',
+}
+
 const initialCreateForm = {
   name: '',
   creditor: '',
@@ -17,6 +24,7 @@ const initialCreateForm = {
   installmentAmount: '',
   totalInstallments: '',
   paidInstallments: '0',
+  paymentFrequency: 'monthly',
 }
 
 const initialPayForm = {
@@ -75,6 +83,7 @@ export default function DeudasPage({ userId, api, disponibles, deudas, onRefresh
         installment_amount: Number(createForm.installmentAmount),
         total_installments: Number(createForm.totalInstallments),
         paid_installments: Number(createForm.paidInstallments || 0),
+        payment_frequency: createForm.paymentFrequency,
       })
 
       setMessage('Deuda creada correctamente.')
@@ -139,8 +148,18 @@ export default function DeudasPage({ userId, api, disponibles, deudas, onRefresh
           </label>
 
           <label>
-            <span>Fecha de pago</span>
+            <span>Fecha de próximo pago</span>
             <input type="date" value={createForm.dueDate} onChange={(e) => updateCreate('dueDate', e.target.value)} required />
+          </label>
+
+          <label>
+            <span>Frecuencia de pago</span>
+            <select value={createForm.paymentFrequency} onChange={(e) => updateCreate('paymentFrequency', e.target.value)}>
+              <option value="monthly">Mensual</option>
+              <option value="biweekly">Quincenal</option>
+              <option value="weekly">Semanal</option>
+              <option value="none">Sin fecha fija</option>
+            </select>
           </label>
 
           <label>
@@ -233,23 +252,13 @@ export default function DeudasPage({ userId, api, disponibles, deudas, onRefresh
                 <div className="debt-meta">
                   <span>Cuota: {q(deuda.installment_amount)}</span>
                   <span>Pendientes: {deuda.pending_installments}</span>
+                  <span>
+                    {deuda.payment_frequency !== 'none'
+                      ? `Próximo pago: ${deuda.due_date}`
+                      : `Pago: ${deuda.due_date}`}
+                  </span>
+                  <span>{FREQ_LABELS[deuda.payment_frequency] ?? deuda.payment_frequency}</span>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : <EmptyState text="No hay deudas activas." />}
-      </Panel>
-
-      <Panel title="Todas las deudas">
-        {activasRows.length > 0 ? (
-          <div className="list-stack">
-            {activasRows.map((deuda) => (
-              <div className="list-row" key={deuda.id}>
-                <div>
-                  <strong>{deuda.name}</strong>
-                  <small>Activa</small>
-                </div>
-                <span>{q(deuda.saldo_pendiente)}</span>
               </div>
             ))}
           </div>
@@ -257,23 +266,32 @@ export default function DeudasPage({ userId, api, disponibles, deudas, onRefresh
       </Panel>
 
       <Panel title="Detalle de deudas" className="full-span">
-        {activasRows.length > 0 ? (
+        {deudasRows.length > 0 ? (
           <div className="list-stack">
-            {activasRows.map((deuda) => (
-              <div className="debt-card debt-detail" key={`detail-${deuda.id}`}>
-                <div>
-                  <strong>{deuda.name}</strong>
-                  <small>{deuda.creditor} · vence {deuda.due_date}</small>
+            {deudasRows.map((deuda) => {
+              const isPaid = deuda.status === 'paid'
+              return (
+                <div className="debt-card debt-detail" key={`detail-${deuda.id}`} style={{ opacity: isPaid ? 0.6 : 1 }}>
+                  <div>
+                    <strong>{deuda.name}</strong>
+                    <small>
+                      {deuda.creditor}
+                      {' · '}
+                      {FREQ_LABELS[deuda.payment_frequency] ?? deuda.payment_frequency}
+                      {isPaid ? ' · ✅ Pagada' : ` · Próximo: ${deuda.due_date}`}
+                    </small>
+                  </div>
+                  <div className="debt-meta">
+                    <span>Cuota: {q(deuda.installment_amount)}</span>
+                    <span>Pagadas: {deuda.paid_installments}/{deuda.total_installments}</span>
+                    <span>Pendientes: {deuda.pending_installments}</span>
+                    <span>Saldo: {q(deuda.saldo_pendiente)}</span>
+                  </div>
                 </div>
-                <div className="debt-meta">
-                  <span>Pagadas: {deuda.paid_installments}/{deuda.total_installments}</span>
-                  <span>Pendientes: {deuda.pending_installments}</span>
-                  <span>Saldo: {q(deuda.saldo_pendiente)}</span>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
-        ) : <EmptyState text="No hay deudas activas." />}
+        ) : <EmptyState text="No hay deudas registradas." />}
       </Panel>
     </div>
   )

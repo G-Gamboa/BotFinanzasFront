@@ -26,7 +26,7 @@ const initialPrefsForm = {
 
 const initialLoanPersonForm = { name: '' }
 
-const initialDebtForm = { name: '', creditor: '', due_date: '', installment_amount: '', total_installments: '' }
+const initialDebtForm = { name: '', creditor: '', due_date: '', installment_amount: '', total_installments: '', payment_frequency: 'monthly' }
 const initialGoalForm = { name: '', target_amount: '', account_name: '' }
 
 export default function ConfiguracionPage({
@@ -175,6 +175,7 @@ export default function ConfiguracionPage({
       due_date: selectedDebt.due_date || '',
       installment_amount: String(selectedDebt.installment_amount),
       total_installments: String(selectedDebt.total_installments),
+      payment_frequency: selectedDebt.payment_frequency || 'monthly',
     })
   }, [selectedDebt])
 
@@ -196,6 +197,7 @@ export default function ConfiguracionPage({
         due_date: debtForm.due_date,
         installment_amount: Number(debtForm.installment_amount),
         total_installments: Number(debtForm.total_installments),
+        payment_frequency: debtForm.payment_frequency,
       })
       setMessage('Deuda actualizada correctamente.')
       setSelectedDebtId(''); setDebtForm(initialDebtForm)
@@ -775,8 +777,17 @@ export default function ConfiguracionPage({
                 <input value={debtForm.creditor} onChange={(e) => setDebtForm((p) => ({ ...p, creditor: e.target.value }))} required />
               </label>
               <label>
-                <span>Fecha de vencimiento</span>
+                <span>Fecha próximo pago</span>
                 <input type="date" value={debtForm.due_date} onChange={(e) => setDebtForm((p) => ({ ...p, due_date: e.target.value }))} required />
+              </label>
+              <label>
+                <span>Frecuencia de pago</span>
+                <select value={debtForm.payment_frequency} onChange={(e) => setDebtForm((p) => ({ ...p, payment_frequency: e.target.value }))}>
+                  <option value="monthly">Mensual</option>
+                  <option value="biweekly">Quincenal</option>
+                  <option value="weekly">Semanal</option>
+                  <option value="none">Sin fecha fija</option>
+                </select>
               </label>
               <label>
                 <span>Monto por cuota</span>
