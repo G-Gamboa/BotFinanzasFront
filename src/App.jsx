@@ -211,6 +211,7 @@ export default function App() {
               catalogos={catalogos}
               disponibles={disponibles}
               dashboard={dashboard}
+              savingsGoals={dashboard?.savings_goals || []}
               onRefreshData={loadAllData}
             />
           )}

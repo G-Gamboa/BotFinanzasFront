@@ -19,9 +19,10 @@ const initialForm = {
   targetAccountName: '',
   destinationAmount: '',
   loanPersonName: '',
+  savingsGoalId: '',
 }
 
-export default function MovimientosPage({ userId, api, catalogos, disponibles, dashboard,onRefreshData }) {
+export default function MovimientosPage({ userId, api, catalogos, disponibles, dashboard, savingsGoals = [], onRefreshData }) {
   const [form, setForm] = useState(initialForm)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -126,6 +127,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
           if (value === 'RETIRAR') {
             next.sourceAccountName = ''
             next.targetAccountName = ahorroDisponibles[0]?.cuenta || liquidAccounts[0] || ''
+            next.savingsGoalId = ''
           }
         }
 
@@ -182,6 +184,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
           next.movDirection = 'GUARDAR'
           next.targetAccountName = ''
           next.sourceAccountName = liquidAccounts[0] || ''
+          next.savingsGoalId = ''
         }
 
         if (value === 'INVERSION') {
@@ -288,6 +291,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
         if (form.movSubtype === 'AHORRO') {
           if (form.movDirection === 'GUARDAR') {
             payload.source_account_name = form.sourceAccountName
+            payload.savings_goal_id = form.savingsGoalId ? Number(form.savingsGoalId) : null
           } else {
             payload.target_account_name = form.targetAccountName
           }
@@ -325,6 +329,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
         targetAccountName: '',
         accountName: 'Efectivo',
         loanPersonName: loanPeople[0] || '',
+        savingsGoalId: '',
       }))
 
       onRefreshData?.()
@@ -459,6 +464,21 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                         <div className="full-span helper-text">
                           Disponible: Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
                         </div>
+                      ) : null}
+
+                      {savingsGoals.length > 0 ? (
+                        <label>
+                          <span>Meta de ahorro</span>
+                          <select
+                            value={form.savingsGoalId}
+                            onChange={(e) => updateField('savingsGoalId', e.target.value)}
+                          >
+                            <option value="">Sin meta</option>
+                            {savingsGoals.map((g) => (
+                              <option key={g.id} value={String(g.id)}>{g.name}</option>
+                            ))}
+                          </select>
+                        </label>
                       ) : null}
                     </>
                   ) : (
