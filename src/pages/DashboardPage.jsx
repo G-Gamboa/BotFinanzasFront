@@ -105,31 +105,14 @@ export default function DashboardPage({ userId, api, loading, palette, dashboard
               <div style={{ color: palette.textSoft }}>No tienes ahorro distribuido.</div>
             ) : (
               <div style={{ display: 'grid', gap: '0.7rem' }}>
-                {dashboard.networth.ahorro_por_cuenta.map((item) => {
-                  const goal = (dashboard?.savings_goals || []).find((g) => g.account_name === item.cuenta)
-                  const pct = goal ? Math.min(100, (item.saldo / goal.target_amount) * 100) : null
-                  return (
-                    <div key={item.cuenta} style={{ display: 'grid', gap: '0.4rem' }}>
-                      <div style={rowBox(palette)}>
-                        <span style={{ color: palette.text, fontWeight: 700 }}>{item.cuenta}</span>
-                        <span style={{ color: palette.primary, fontWeight: 800 }}>
-                          {moneyVisible(item.saldo, showAmounts)}
-                        </span>
-                      </div>
-                      {goal ? (
-                        <div style={{ padding: '0 0.2rem' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: palette.textSoft, marginBottom: '0.25rem' }}>
-                            <span>🎯 {goal.name}</span>
-                            <span>{showAmounts ? `${pct.toFixed(0)}% de ${moneyVisible(goal.target_amount)}` : '••••'}</span>
-                          </div>
-                          <div style={{ height: 6, borderRadius: 999, background: palette.surface || palette.card, overflow: 'hidden' }}>
-                            <div style={{ width: `${pct}%`, height: '100%', background: pct >= 100 ? '#43a047' : palette.primary, borderRadius: 999, transition: 'width 0.3s' }} />
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  )
-                })}
+                {dashboard.networth.ahorro_por_cuenta.map((item) => (
+                  <div key={item.cuenta} style={rowBox(palette)}>
+                    <span style={{ color: palette.text, fontWeight: 700 }}>{item.cuenta}</span>
+                    <span style={{ color: palette.primary, fontWeight: 800 }}>
+                      {moneyVisible(item.saldo, showAmounts)}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </SectionCard>
@@ -138,21 +121,9 @@ export default function DashboardPage({ userId, api, loading, palette, dashboard
             <SectionCard palette={palette} title="Préstamos pendientes">
               <div style={{ display: 'grid', gap: '0.6rem' }}>
                 {dashboard.prestamos_resumen.items.map((p) => (
-                  <div key={p.person} style={{ display: 'grid', gap: '0.3rem' }}>
-                    <div style={rowBox(palette)}>
-                      <span style={{ color: palette.text, fontWeight: 700 }}>{p.person}</span>
-                      <span style={{ color: palette.primary, fontWeight: 800 }}>{moneyVisible(p.total_balance, showAmounts)}</span>
-                    </div>
-                    {p.concepts.length > 1 ? (
-                      <div style={{ paddingLeft: '0.7rem', display: 'grid', gap: '0.2rem' }}>
-                        {p.concepts.map((c) => (
-                          <div key={c.concept} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: palette.textSoft }}>
-                            <span>· {c.concept}</span>
-                            <span>{moneyVisible(c.balance, showAmounts)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
+                  <div key={p.person} style={rowBox(palette)}>
+                    <span style={{ color: palette.text, fontWeight: 700 }}>{p.person}</span>
+                    <span style={{ color: palette.primary, fontWeight: 800 }}>{moneyVisible(p.total_balance, showAmounts)}</span>
                   </div>
                 ))}
               </div>
