@@ -14,6 +14,11 @@ export default function DashboardPage({ userId, api, loading, palette, dashboard
   const [customResult, setCustomResult] = useState(null)
   const [customLoading, setCustomLoading] = useState(false)
   const [customError, setCustomError] = useState('')
+  const [expandedCategory, setExpandedCategory] = useState(null)
+
+  function handleCategoryClick(cat) {
+    setExpandedCategory((prev) => (prev === cat ? null : cat))
+  }
 
   const periodSource = useMemo(() => {
     if (period === 'dia') return dashboard?.resumen_dia || {}
@@ -27,6 +32,7 @@ export default function DashboardPage({ userId, api, loading, palette, dashboard
     setCustomLoading(true)
     setCustomError('')
     setCustomResult(null)
+    setExpandedCategory(null)
     try {
       const result = await api.getPeriodoResumen(userId, { date_from: dateFrom, date_to: dateTo })
       setCustomResult(result)
@@ -257,11 +263,118 @@ export default function DashboardPage({ userId, api, loading, palette, dashboard
             </div>
 
             {Object.keys(customResult.gastos_por_categoria || {}).length > 0 ? (
-              <div style={{ borderTop: `1px solid ${palette.borderSoft || palette.border}`, paddingTop: '0.8rem' }}>
-                <div style={{ color: palette.textSoft, fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.7rem' }}>
-                  Gastos por categoría
+              <div style={{ borderTop: `1px solid ${palette.borderSoft || palette.border}`, paddingTop: '0.8rem', display: 'grid', gap: '0.9rem' }}>
+                <div style={{ color: palette.textSoft, fontWeight: 700, fontSize: '0.82rem' }}>
+                  Gastos por categoría — presiona para ver el desglose
                 </div>
-                <GastosChart palette={palette} data={customResult.gastos_por_categoria} />
+
+                {Object.entries(customResult.gastos_por_categoria)
+                  .map(([cat, monto]) => ({ cat, monto: Number(monto) }))
+                  .filter((x) => x.monto > 0)
+                  .sort((a, b) => b.monto - a.monto)
+                  .map(({ cat, monto }) => {
+                    const isOpen = expandedCategory === cat
+                    const items = (customResult.detalle_por_categoria || {})[cat] || []
+                    const maxMonto = Math.max(...Object.values(customResult.gastos_por_categoria).map(Number), 1)
+
+                    return (
+                      <div key={cat}>
+                        {/* Category row — clickable */}
+                        <div
+                          onClick={() => handleCategoryClick(cat)}
+                          style={{
+                            display: 'grid',
+                            gap: '0.35rem',
+                            padding: '0.8rem',
+                            borderRadius: isOpen ? '1rem 1rem 0 0' : '1rem',
+                            background: palette.cardSoft,
+                            border: `1px solid ${isOpen ? palette.primary : (palette.borderSoft || palette.border)}`,
+                            borderBottom: isOpen ? 'none' : undefined,
+                            cursor: 'pointer',
+                            transition: 'border-color 0.15s',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+                            <span style={{ color: palette.text, fontWeight: 700 }}>{cat}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span style={{ color: palette.textSoft, fontWeight: 700 }}>
+                                {money(monto, showAmounts)}
+                              </span>
+                              <span style={{
+                                color: palette.primary,
+                                fontWeight: 700,
+                                fontSize: '0.85rem',
+                                display: 'inline-block',
+                                transition: 'transform 0.15s',
+                                transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                              }}>
+                                ▾
+                              </span>
+                            </div>
+                          </div>
+                          {/* Bar */}
+                          <div style={{ height: 10, borderRadius: 999, background: palette.surface || palette.card, overflow: 'hidden' }}>
+                            <div style={{
+                              width: `${(monto / maxMonto) * 100}%`,
+                              height: '100%',
+                              background: `linear-gradient(90deg, ${palette.primary}, ${palette.accent || palette.primarySoft})`,
+                              borderRadius: 999,
+                            }} />
+                          </div>
+                        </div>
+
+                        {/* Expanded detail */}
+                        {isOpen && (
+                          <div style={{
+                            border: `1px solid ${palette.primary}`,
+                            borderTop: 'none',
+                            borderRadius: '0 0 1rem 1rem',
+                            overflow: 'hidden',
+                          }}>
+                            {items.length === 0 ? (
+                              <div style={{ padding: '0.8rem 1rem', color: palette.textSoft, fontSize: '0.85rem' }}>
+                                Sin detalle disponible.
+                              </div>
+                            ) : (
+                              items.map((item, idx) => (
+                                <div
+                                  key={`${item.record_type}-${item.id}`}
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    padding: '0.65rem 1rem',
+                                    background: idx % 2 === 0 ? palette.cardSoft : (palette.surface || palette.card),
+                                    gap: '0.5rem',
+                                    flexWrap: 'wrap',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', flex: 1, minWidth: 0 }}>
+                                    <span style={{ color: palette.textSoft, fontSize: '0.78rem', fontWeight: 600 }}>
+                                      {item.date}
+                                    </span>
+                                    {item.note ? (
+                                      <span style={{ color: palette.text, fontSize: '0.88rem', fontWeight: 500, wordBreak: 'break-word' }}>
+                                        {item.note}
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: palette.textSoft, fontSize: '0.82rem', fontStyle: 'italic' }}>
+                                        Sin nota
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span style={{ color: palette.primary, fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.95rem' }}>
+                                    {money(item.amount, showAmounts)}
+                                  </span>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                }
               </div>
             ) : null}
           </div>
