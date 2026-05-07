@@ -266,9 +266,9 @@ export default function DeudasPage({ userId, api, disponibles, deudas, onRefresh
       </Panel>
 
       <Panel title="Detalle de deudas" className="full-span">
-        {deudasRows.length > 0 ? (
+        {activasRows.length > 0 ? (
           <div className="list-stack">
-            {deudasRows.map((deuda) => {
+            {activasRows.map((deuda) => {
               const isPaid = deuda.status === 'paid'
               return (
                 <div className="debt-card debt-detail" key={`detail-${deuda.id}`} style={{ opacity: isPaid ? 0.6 : 1 }}>
@@ -291,7 +291,7 @@ export default function DeudasPage({ userId, api, disponibles, deudas, onRefresh
               )
             })}
           </div>
-        ) : <EmptyState text="No hay deudas registradas." />}
+        ) : <EmptyState text="No hay deudas activas." />}
       </Panel>
     </div>
   )
