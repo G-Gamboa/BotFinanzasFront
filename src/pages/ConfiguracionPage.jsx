@@ -26,12 +26,16 @@ const initialPrefsForm = {
 
 const initialLoanPersonForm = { name: '' }
 
+const initialDebtForm = { name: '', creditor: '', due_date: '', installment_amount: '', total_installments: '' }
+const initialGoalForm = { name: '', target_amount: '', account_name: '' }
+
 export default function ConfiguracionPage({
   userId,
   api,
   cuentas,
   categorias,
   loanPeople,
+  deudas,
   preferencias,
   canUsePrestamos,
   canPrivate,
@@ -41,16 +45,23 @@ export default function ConfiguracionPage({
   const [categoryForm, setCategoryForm] = useState(initialCategoryForm)
   const [prefsForm, setPrefsForm] = useState(initialPrefsForm)
   const [loanPersonForm, setLoanPersonForm] = useState(initialLoanPersonForm)
+  const [debtForm, setDebtForm] = useState(initialDebtForm)
+  const [goalForm, setGoalForm] = useState(initialGoalForm)
+  const [goals, setGoals] = useState([])
 
   const [selectedAccountId, setSelectedAccountId] = useState('')
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
   const [selectedLoanPersonId, setSelectedLoanPersonId] = useState('')
+  const [selectedDebtId, setSelectedDebtId] = useState('')
+  const [selectedGoalId, setSelectedGoalId] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('EGR')
 
   const [savingAccount, setSavingAccount] = useState(false)
   const [savingCategory, setSavingCategory] = useState(false)
   const [savingPrefs, setSavingPrefs] = useState(false)
   const [savingLoanPerson, setSavingLoanPerson] = useState(false)
+  const [savingDebt, setSavingDebt] = useState(false)
+  const [savingGoal, setSavingGoal] = useState(false)
 
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -58,6 +69,15 @@ export default function ConfiguracionPage({
   const cuentasItems = useMemo(() => cuentas?.items || [], [cuentas])
   const categoriasItems = useMemo(() => categorias?.items || [], [categorias])
   const loanPeopleItems = useMemo(() => loanPeople?.items || [], [loanPeople])
+  const deudasItems = useMemo(() => deudas?.items || [], [deudas])
+  const ahorroAccounts = useMemo(
+    () => cuentasItems.filter((a) => a.account_type === 'cash' || a.account_type === 'bank').map((a) => a.name),
+    [cuentasItems]
+  )
+  const sortedAccounts = useMemo(
+    () => [...cuentasItems].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
+    [cuentasItems]
+  )
   const themeOptions = useMemo(
     () => getPaletteOptions(Boolean(canPrivate)),
     [canPrivate]
@@ -130,6 +150,111 @@ export default function ConfiguracionPage({
     }
     setLoanPersonForm({ name: selectedLoanPerson.name })
   }, [selectedLoanPerson])
+
+  // Load savings goals
+  useEffect(() => {
+    if (!userId) return
+    api.getSavingsGoals(userId).then((res) => setGoals(res?.items || [])).catch(() => {})
+  }, [userId])
+
+  const selectedDebt = useMemo(
+    () => deudasItems.find((d) => String(d.id) === String(selectedDebtId)) || null,
+    [deudasItems, selectedDebtId]
+  )
+
+  const selectedGoal = useMemo(
+    () => goals.find((g) => String(g.id) === String(selectedGoalId)) || null,
+    [goals, selectedGoalId]
+  )
+
+  useEffect(() => {
+    if (!selectedDebt) { setDebtForm(initialDebtForm); return }
+    setDebtForm({
+      name: selectedDebt.name,
+      creditor: selectedDebt.creditor,
+      due_date: selectedDebt.due_date || '',
+      installment_amount: String(selectedDebt.installment_amount),
+      total_installments: String(selectedDebt.total_installments),
+    })
+  }, [selectedDebt])
+
+  useEffect(() => {
+    if (!selectedGoal) { setGoalForm(initialGoalForm); return }
+    setGoalForm({
+      name: selectedGoal.name,
+      target_amount: String(selectedGoal.target_amount),
+      account_name: selectedGoal.account_name || '',
+    })
+  }, [selectedGoal])
+
+  async function submitDebt(e) {
+    e.preventDefault(); clearMessages(); setSavingDebt(true)
+    try {
+      await api.patchDeuda(selectedDebtId, {
+        name: debtForm.name,
+        creditor: debtForm.creditor,
+        due_date: debtForm.due_date,
+        installment_amount: Number(debtForm.installment_amount),
+        total_installments: Number(debtForm.total_installments),
+      })
+      setMessage('Deuda actualizada correctamente.')
+      setSelectedDebtId(''); setDebtForm(initialDebtForm)
+      onRefreshData?.()
+    } catch (err) { setError(err.message || 'No pude guardar la deuda.') }
+    finally { setSavingDebt(false) }
+  }
+
+  async function submitGoal(e) {
+    e.preventDefault(); clearMessages(); setSavingGoal(true)
+    try {
+      const payload = {
+        telegram_user_id: Number(userId),
+        name: goalForm.name,
+        target_amount: Number(goalForm.target_amount),
+        account_name: goalForm.account_name || null,
+      }
+      if (selectedGoalId) {
+        await api.patchSavingsGoal(selectedGoalId, { name: payload.name, target_amount: payload.target_amount, account_name: payload.account_name })
+        setMessage('Meta actualizada correctamente.')
+      } else {
+        await api.postSavingsGoal(payload)
+        setMessage('Meta creada correctamente.')
+      }
+      setSelectedGoalId(''); setGoalForm(initialGoalForm)
+      const res = await api.getSavingsGoals(userId); setGoals(res?.items || [])
+      onRefreshData?.()
+    } catch (err) { setError(err.message || 'No pude guardar la meta.') }
+    finally { setSavingGoal(false) }
+  }
+
+  async function deleteGoal(goalId) {
+    clearMessages()
+    try {
+      await api.deleteSavingsGoal(goalId)
+      setMessage('Meta eliminada correctamente.')
+      setSelectedGoalId(''); setGoalForm(initialGoalForm)
+      const res = await api.getSavingsGoals(userId); setGoals(res?.items || [])
+      onRefreshData?.()
+    } catch (err) { setError(err.message || 'No pude eliminar la meta.') }
+  }
+
+  async function reorderAccount(accountId, direction) {
+    const idx = sortedAccounts.findIndex((a) => a.id === accountId)
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= sortedAccounts.length) return
+    const a = sortedAccounts[idx]
+    const b = sortedAccounts[swapIdx]
+    const aOrder = a.sort_order ?? idx
+    const bOrder = b.sort_order ?? swapIdx
+    clearMessages()
+    try {
+      await Promise.all([
+        api.patchCuenta(a.id, { telegram_user_id: Number(userId), name: a.name, account_type: a.account_type, currency: a.currency, sort_order: bOrder }),
+        api.patchCuenta(b.id, { telegram_user_id: Number(userId), name: b.name, account_type: b.account_type, currency: b.currency, sort_order: aOrder }),
+      ])
+      onRefreshData?.()
+    } catch (err) { setError(err.message || 'No pude reordenar las cuentas.') }
+  }
 
   function clearMessages() {
     setMessage('')
@@ -602,6 +727,119 @@ export default function ConfiguracionPage({
           </form>
         </Panel>
       ) : null}
+
+      {/* ── Reordenar cuentas ── */}
+      <Panel title="Orden de cuentas">
+        <div style={{ display: 'grid', gap: '0.5rem' }}>
+          {sortedAccounts.map((acc, idx) => (
+            <div key={acc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.8rem', borderRadius: '0.8rem', background: 'var(--card-soft)', border: '1px solid var(--border-soft)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                <button className="ghost-btn" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }} onClick={() => reorderAccount(acc.id, 'up')} disabled={idx === 0}>↑</button>
+                <button className="ghost-btn" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }} onClick={() => reorderAccount(acc.id, 'down')} disabled={idx === sortedAccounts.length - 1}>↓</button>
+              </div>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontWeight: 700 }}>{acc.name}</span>
+                <span style={{ marginLeft: '0.5rem', fontSize: '0.78rem', color: 'var(--text-soft)' }}>{acc.account_type} · {acc.currency}</span>
+              </div>
+              {!acc.is_active ? <span className="mini-chip">Inactiva</span> : null}
+            </div>
+          ))}
+        </div>
+      </Panel>
+
+      {/* ── Editar Deudas ── */}
+      {deudasItems.length > 0 ? (
+        <Panel title="Editar deudas">
+          <div className="config-select-row">
+            <label>
+              <span>Selecciona una deuda para editar</span>
+              <select value={selectedDebtId} onChange={(e) => setSelectedDebtId(e.target.value)}>
+                <option value="">Selecciona…</option>
+                {deudasItems.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} · {d.creditor} · {d.status === 'paid' ? 'Pagada' : 'Activa'}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {selectedDebt ? (
+            <form className="form-grid" onSubmit={submitDebt}>
+              <label>
+                <span>Nombre</span>
+                <input value={debtForm.name} onChange={(e) => setDebtForm((p) => ({ ...p, name: e.target.value }))} required />
+              </label>
+              <label>
+                <span>Acreedor</span>
+                <input value={debtForm.creditor} onChange={(e) => setDebtForm((p) => ({ ...p, creditor: e.target.value }))} required />
+              </label>
+              <label>
+                <span>Fecha de vencimiento</span>
+                <input type="date" value={debtForm.due_date} onChange={(e) => setDebtForm((p) => ({ ...p, due_date: e.target.value }))} required />
+              </label>
+              <label>
+                <span>Monto por cuota</span>
+                <input type="number" min="0.01" step="0.01" value={debtForm.installment_amount} onChange={(e) => setDebtForm((p) => ({ ...p, installment_amount: e.target.value }))} required />
+              </label>
+              <label>
+                <span>Total de cuotas</span>
+                <input type="number" min="1" step="1" value={debtForm.total_installments} onChange={(e) => setDebtForm((p) => ({ ...p, total_installments: e.target.value }))} required />
+              </label>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-soft)', gridColumn: '1/-1' }}>
+                Cuotas pagadas: {selectedDebt.paid_installments} (no editable)
+              </div>
+              <div className="full-span form-actions split-actions">
+                <button className="primary-btn" type="submit" disabled={savingDebt}>{savingDebt ? 'Guardando...' : 'Actualizar deuda'}</button>
+                <button className="ghost-btn" type="button" onClick={() => { setSelectedDebtId(''); setDebtForm(initialDebtForm) }}>Limpiar</button>
+              </div>
+            </form>
+          ) : null}
+        </Panel>
+      ) : null}
+
+      {/* ── Metas de ahorro ── */}
+      <Panel title="Metas de ahorro">
+        {goals.length > 0 ? (
+          <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '1rem' }}>
+            {goals.map((g) => (
+              <div key={g.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.8rem', borderRadius: '0.8rem', background: 'var(--card-soft)', border: '1px solid var(--border-soft)', gap: '0.5rem' }}>
+                <div>
+                  <span style={{ fontWeight: 700 }}>{g.name}</span>
+                  {g.account_name ? <span style={{ marginLeft: '0.4rem', fontSize: '0.78rem', color: 'var(--text-soft)' }}>· {g.account_name}</span> : null}
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-soft)' }}>Meta: Q {Number(g.target_amount).toFixed(2)}</div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <button className="ghost-btn" style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }} onClick={() => setSelectedGoalId(String(g.id))}>Editar</button>
+                  <button className="ghost-btn danger-btn" style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }} onClick={() => deleteGoal(g.id)}>✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : <EmptyState text="No tienes metas de ahorro." />}
+
+        <form className="form-grid" onSubmit={submitGoal}>
+          <label>
+            <span>Nombre de la meta</span>
+            <input value={goalForm.name} onChange={(e) => setGoalForm((p) => ({ ...p, name: e.target.value }))} placeholder="Ej. Vacaciones" required />
+          </label>
+          <label>
+            <span>Monto objetivo (Q)</span>
+            <input type="number" min="0.01" step="0.01" value={goalForm.target_amount} onChange={(e) => setGoalForm((p) => ({ ...p, target_amount: e.target.value }))} required />
+          </label>
+          <label>
+            <span>Cuenta de ahorro vinculada</span>
+            <select value={goalForm.account_name} onChange={(e) => setGoalForm((p) => ({ ...p, account_name: e.target.value }))}>
+              <option value="">Sin vincular</option>
+              {ahorroAccounts.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+          <div className="full-span form-actions split-actions">
+            <button className="primary-btn" type="submit" disabled={savingGoal}>{savingGoal ? 'Guardando...' : selectedGoalId ? 'Actualizar meta' : 'Crear meta'}</button>
+            {selectedGoalId ? <button className="ghost-btn" type="button" onClick={() => { setSelectedGoalId(''); setGoalForm(initialGoalForm) }}>Limpiar</button> : null}
+          </div>
+        </form>
+      </Panel>
 
       <Panel title="Preferencias">
         <form className="form-grid" onSubmit={submitPreferences}>

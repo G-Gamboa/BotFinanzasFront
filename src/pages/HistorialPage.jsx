@@ -24,6 +24,8 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
     date_to: '',
     movement_type: '',
     note: '',
+    amount_min: '',
+    amount_max: '',
     limit: PAGE_SIZE,
   })
 
@@ -210,6 +212,30 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
             />
           </label>
 
+          <label>
+            <span>Monto mín.</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={filters.amount_min}
+              onChange={(e) => updateFilter('amount_min', e.target.value)}
+              placeholder="0.00"
+            />
+          </label>
+
+          <label>
+            <span>Monto máx.</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={filters.amount_max}
+              onChange={(e) => updateFilter('amount_max', e.target.value)}
+              placeholder="Sin límite"
+            />
+          </label>
+
           <div className="full-span form-actions split-actions">
             <button className="primary-btn" type="submit">
               Aplicar filtros
@@ -219,7 +245,7 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
               className="ghost-btn"
               type="button"
               onClick={() => {
-                const next = { date_from: '', date_to: '', movement_type: '', note: '', limit: PAGE_SIZE }
+                const next = { date_from: '', date_to: '', movement_type: '', note: '', amount_min: '', amount_max: '', limit: PAGE_SIZE }
                 setFilters(next)
                 setPage(0)
                 loadHistorial(0, next)

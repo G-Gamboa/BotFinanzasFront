@@ -194,6 +194,7 @@ export default function App() {
           cuentas={cuentasAdmin}
           categorias={categoriasAdmin}
           loanPeople={loanPeopleAdmin}
+          deudas={deudas}
           preferencias={preferencias}
           canUsePrestamos={canUsePrestamos}
           canPrivate={canPrivate}

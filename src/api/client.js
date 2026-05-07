@@ -126,12 +126,25 @@ export const api = {
     return request(`/dashboard/${userId}/periodo${qs ? `?${qs}` : ''}`)
   },
 
+  patchDeuda: (debtId, payload) =>
+    request(`/deudas/${debtId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+
+  getSavingsGoals: (userId) => request(`/savings-goals/${userId}`),
+  postSavingsGoal: (payload) =>
+    request('/savings-goals', { method: 'POST', body: JSON.stringify(payload) }),
+  patchSavingsGoal: (goalId, payload) =>
+    request(`/savings-goals/${goalId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteSavingsGoal: (goalId) =>
+    request(`/savings-goals/${goalId}`, { method: 'DELETE' }),
+
   getHistorial: (userId, params = {}) => {
     const search = new URLSearchParams()
     if (params.date_from) search.set('date_from', params.date_from)
     if (params.date_to) search.set('date_to', params.date_to)
     if (params.movement_type) search.set('movement_type', params.movement_type)
     if (params.note) search.set('note', params.note)
+    if (params.amount_min != null && params.amount_min !== '') search.set('amount_min', String(params.amount_min))
+    if (params.amount_max != null && params.amount_max !== '') search.set('amount_max', String(params.amount_max))
     if (params.limit) search.set('limit', String(params.limit))
     if (params.offset) search.set('offset', String(params.offset))
     const qs = search.toString()

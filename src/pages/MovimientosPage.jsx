@@ -153,6 +153,21 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
             next.sourceAccountName = ''
             next.targetAccountName = liquidAccounts[0] || ''
           }
+          // Auto-fill note when direction changes
+          const person = next.loanPersonName || prev.loanPersonName
+          if (person) {
+            const prefix = value === 'DAR' ? 'Préstamo a' : 'Cobro a'
+            if (!prev.note || prev.note.startsWith('Préstamo a') || prev.note.startsWith('Cobro a')) {
+              next.note = `${prefix} ${person}`
+            }
+          }
+        }
+      }
+
+      if (field === 'loanPersonName' && prev.movSubtype === 'PRESTAMO') {
+        const prefix = prev.movDirection === 'DAR' ? 'Préstamo a' : 'Cobro a'
+        if (!prev.note || prev.note.startsWith('Préstamo a') || prev.note.startsWith('Cobro a')) {
+          next.note = `${prefix} ${value}`
         }
       }
 
