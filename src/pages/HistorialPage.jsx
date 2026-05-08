@@ -37,7 +37,7 @@ function getOrigenText(item) {
   if (item.payment_method === 'credit_card') {
     return item.credit_card_account_name ? `TC: ${item.credit_card_account_name}` : 'TC'
   }
-  if (item.payment_method === 'cash' && item.movement_type === 'EGR') return null
+  if (item.payment_method === 'cash' && item.movement_type === 'EGR') return 'Efectivo'
   const method = fmtMethod(item.payment_method)
   const account = item.transfer_account || item.source_account || item.target_account
   if (account && method) return `${method}: ${account}`
