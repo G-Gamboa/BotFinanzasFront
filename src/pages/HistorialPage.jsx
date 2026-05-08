@@ -5,7 +5,49 @@ import EmptyState from '../components/EmptyState'
 
 const PAGE_SIZE = 15
 
-export default function HistorialPage({ userId, api, categorias, onRefreshData }) {
+function fmtDate(iso) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return `${d}-${m}-${y}`
+}
+
+function fmtMethod(pm) {
+  if (pm === 'cash') return 'Efectivo'
+  if (pm === 'transfer') return 'Transferencia'
+  if (pm === 'credit_card') return 'TC'
+  return pm || ''
+}
+
+function fmtSubtype(s) {
+  const map = {
+    INGRESO: 'Ingreso',
+    EGRESO: 'Egreso',
+    AHORRO: 'Ahorro',
+    INVERSION: 'Inversión',
+    NORMAL: 'Movimiento',
+    COBRO: 'Cobro',
+    PAGO_DEUDA: 'Pago deuda',
+    PRESTAMO: 'Préstamo',
+    OTRO: 'Otro',
+  }
+  return map[s] || s
+}
+
+function getOrigenText(item) {
+  if (item.payment_method === 'credit_card') {
+    return item.credit_card_account_name ? `TC: ${item.credit_card_account_name}` : 'TC'
+  }
+  const method = fmtMethod(item.payment_method)
+  const account = item.transfer_account || item.source_account || item.target_account
+  if (account && method) return `${method}: ${account}`
+  if (account) return account
+  if (method) return method
+  return null
+}
+
+export default function HistorialPage({
+  userId, api, categorias, catalogos, disponibles, tcBalances = [], onRefreshData,
+}) {
   const [items, setItems] = useState([])
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(0)
@@ -18,6 +60,7 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
   const [savingEdit, setSavingEdit] = useState(false)
 
   const categoriasItems = useMemo(() => categorias?.items || [], [categorias])
+  const creditCards = useMemo(() => catalogos?.accounts?.credit_cards || [], [catalogos])
 
   const [filters, setFilters] = useState({
     date_from: '',
@@ -74,11 +117,7 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
       ? 'pago de deuda'
       : 'movimiento'
 
-    const reason = window.prompt(
-      `Anular ${label} #${item.id}\n\nMotivo opcional:`,
-      ''
-    )
-
+    const reason = window.prompt(`Anular ${label}\n\nMotivo opcional:`, '')
     if (reason === null) return
 
     setVoidingId(item.id)
@@ -87,7 +126,6 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
 
     try {
       const voidPayload = { reason: reason.trim() || null }
-
       if (item.record_type === 'loan_payment') {
         await api.anularLoanPayment(item.id, voidPayload)
       } else if (item.record_type === 'debt_payment') {
@@ -95,8 +133,7 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
       } else {
         await api.anularMovimiento(item.id, voidPayload)
       }
-
-      setMessage(`Registro #${item.id} anulado correctamente.`)
+      setMessage('Registro anulado correctamente.')
       await loadHistorial()
       await onRefreshData?.()
     } catch (err) {
@@ -113,7 +150,9 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
       amount: String(item.amount),
       note: item.note || '',
       category_name: item.category_name || '',
-      payment_method: item.payment_method || '',
+      credit_card_account_id: item.credit_card_account_id
+        ? String(item.credit_card_account_id)
+        : (creditCards[0]?.id ? String(creditCards[0].id) : ''),
     })
   }
 
@@ -122,24 +161,62 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
     setEditForm({})
   }
 
+  // Compute max spendable for the item being edited (for EGR validation)
+  const editMaxAmount = useMemo(() => {
+    if (!editingId) return null
+    const item = items.find((i) => i.id === editingId)
+    if (!item || item.movement_type !== 'EGR') return null
+
+    const getSaldo = (name) => {
+      if (!name) return 0
+      const found = (disponibles?.saldos_liquidos || []).find((s) => s.cuenta === name)
+      return Number(found?.saldo ?? 0)
+    }
+
+    if (item.payment_method === 'cash') {
+      return Math.round((getSaldo('Efectivo') + item.amount) * 100) / 100
+    }
+    if (item.payment_method === 'transfer') {
+      const acct = item.transfer_account || ''
+      return Math.round((getSaldo(acct) + item.amount) * 100) / 100
+    }
+    if (item.payment_method === 'credit_card') {
+      const cardId = Number(editForm.credit_card_account_id || item.credit_card_account_id)
+      const tc = tcBalances.find((t) => t.id === cardId)
+      if (!tc || tc.credit_limit == null) return null
+      return Math.round(((tc.credit_limit || 0) - (tc.balance || 0) + item.amount) * 100) / 100
+    }
+    return null
+  }, [editingId, editForm.credit_card_account_id, items, disponibles, tcBalances])
+
   async function submitEdit(e, item) {
     e.preventDefault()
     setSavingEdit(true)
     setError('')
     setMessage('')
 
+    const newAmount = Number(editForm.amount)
+    if (editMaxAmount !== null && newAmount > editMaxAmount) {
+      setError(`El monto excede el disponible (máx Q ${editMaxAmount.toFixed(2)}).`)
+      setSavingEdit(false)
+      return
+    }
+
     try {
       const payload = {}
       if (editForm.movement_date) payload.movement_date = editForm.movement_date
-      if (editForm.amount !== '') payload.amount = Number(editForm.amount)
+      if (editForm.amount !== '') payload.amount = newAmount
       payload.note = editForm.note || null
+
       if (item.movement_type === 'ING' || item.movement_type === 'EGR') {
         if (editForm.category_name) payload.category_name = editForm.category_name
-        if (editForm.payment_method) payload.payment_method = editForm.payment_method
+        if (item.payment_method === 'credit_card' && editForm.credit_card_account_id) {
+          payload.credit_card_account_id = Number(editForm.credit_card_account_id)
+        }
       }
 
       await api.patchMovimiento(item.id, payload)
-      setMessage(`Movimiento #${item.id} actualizado correctamente.`)
+      setMessage('Movimiento actualizado correctamente.')
       cancelEdit()
       await loadHistorial()
       await onRefreshData?.()
@@ -150,17 +227,13 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
     }
   }
 
-  function renderSecondaryLine(item) {
+  function renderInfo(item) {
     const parts = []
-
     if (item.category_name) parts.push(item.category_name)
+    const origen = getOrigenText(item)
+    if (origen) parts.push(origen)
     if (item.loan_person_name) parts.push(item.loan_person_name)
-    if (item.debt_name) parts.push(`Deuda: ${item.debt_name}`)
-    if (item.payment_method) parts.push(item.payment_method)
-    if (item.source_account) parts.push(`Origen: ${item.source_account}`)
-    if (item.target_account) parts.push(`Destino: ${item.target_account}`)
-    if (item.transfer_account) parts.push(`Cuenta: ${item.transfer_account}`)
-
+    if (item.debt_name) parts.push(item.debt_name)
     return parts.join(' · ')
   }
 
@@ -240,12 +313,14 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
             <button className="primary-btn" type="submit">
               Aplicar filtros
             </button>
-
             <button
               className="ghost-btn"
               type="button"
               onClick={() => {
-                const next = { date_from: '', date_to: '', movement_type: '', note: '', amount_min: '', amount_max: '', limit: PAGE_SIZE }
+                const next = {
+                  date_from: '', date_to: '', movement_type: '', note: '',
+                  amount_min: '', amount_max: '', limit: PAGE_SIZE,
+                }
                 setFilters(next)
                 setPage(0)
                 loadHistorial(0, next)
@@ -281,7 +356,7 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
               onClick={() => goToPage(page + 1)}
               disabled={(page + 1) * PAGE_SIZE >= totalCount || loading}
             >
-             →
+              →
             </button>
           </div>
         )}
@@ -291,12 +366,9 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
             <div key={item.id} className={`history-card${item.is_void ? ' history-card-void' : ''}`}>
               <div className="history-row history-row-top">
                 <div className="history-top-left">
-                  <strong>{item.movement_date}</strong>
-                  <span className={`history-chip history-chip-${String(item.movement_type).toLowerCase()}`}>
-                    {item.movement_type}
-                  </span>
+                  <strong>{fmtDate(item.movement_date)}</strong>
                   <span className="history-chip history-chip-subtype">
-                    {item.subtype}
+                    {fmtSubtype(item.subtype)}
                   </span>
                   {item.is_void ? <span className="history-chip history-chip-void">Anulado</span> : null}
                 </div>
@@ -308,15 +380,14 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
                 </div>
               </div>
 
-              <div className="history-row small history-wrap">
-                <span>ID: {item.id}</span>
-                {renderSecondaryLine(item) ? <span>{renderSecondaryLine(item)}</span> : null}
-              </div>
+              {renderInfo(item) ? (
+                <div className="history-row small history-wrap">
+                  <span>{renderInfo(item)}</span>
+                </div>
+              ) : null}
 
               {item.note ? (
-                <div className="history-note">
-                  {item.note}
-                </div>
+                <div className="history-note">{item.note}</div>
               ) : null}
 
               {editingId === item.id && item.record_type === 'movement' ? (
@@ -332,16 +403,53 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
                   </label>
 
                   <label>
-                    <span>Monto</span>
+                    <span>
+                      Monto
+                      {editMaxAmount !== null ? (
+                        <span className="helper-text"> (máx Q {editMaxAmount.toFixed(2)})</span>
+                      ) : null}
+                    </span>
                     <input
                       type="number"
                       min="0.01"
                       step="0.01"
+                      max={editMaxAmount !== null ? editMaxAmount : undefined}
                       value={editForm.amount}
                       onChange={(e) => setEditForm((p) => ({ ...p, amount: e.target.value }))}
                       required
                     />
                   </label>
+
+                  {(item.movement_type === 'ING' || item.movement_type === 'EGR') ? (
+                    <label>
+                      <span>Categoría</span>
+                      <select
+                        value={editForm.category_name}
+                        onChange={(e) => setEditForm((p) => ({ ...p, category_name: e.target.value }))}
+                      >
+                        <option value="">Sin cambio</option>
+                        {categoriasItems
+                          .filter((c) => c.kind === item.movement_type && c.is_active)
+                          .map((c) => (
+                            <option key={c.id} value={c.name}>{c.name}</option>
+                          ))}
+                      </select>
+                    </label>
+                  ) : null}
+
+                  {item.payment_method === 'credit_card' && creditCards.length > 0 ? (
+                    <label>
+                      <span>Tarjeta</span>
+                      <select
+                        value={editForm.credit_card_account_id}
+                        onChange={(e) => setEditForm((p) => ({ ...p, credit_card_account_id: e.target.value }))}
+                      >
+                        {creditCards.map((tc) => (
+                          <option key={tc.id} value={String(tc.id)}>{tc.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
 
                   <label className="full-span">
                     <span>Nota</span>
@@ -351,38 +459,6 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
                       onChange={(e) => setEditForm((p) => ({ ...p, note: e.target.value }))}
                     />
                   </label>
-
-                  {(item.movement_type === 'ING' || item.movement_type === 'EGR') ? (
-                    <>
-                      <label>
-                        <span>Categoría</span>
-                        <select
-                          value={editForm.category_name}
-                          onChange={(e) => setEditForm((p) => ({ ...p, category_name: e.target.value }))}
-                        >
-                          <option value="">Sin cambio</option>
-                          {categoriasItems
-                            .filter((c) => c.kind === item.movement_type && c.is_active)
-                            .map((c) => (
-                              <option key={c.id} value={c.name}>{c.name}</option>
-                            ))}
-                        </select>
-                      </label>
-
-                      <label>
-                        <span>Método de pago</span>
-                        <select
-                          value={editForm.payment_method}
-                          onChange={(e) => setEditForm((p) => ({ ...p, payment_method: e.target.value }))}
-                        >
-                          <option value="">Sin cambio</option>
-                          <option value="cash">Efectivo</option>
-                          <option value="transfer">Transferencia</option>
-                          <option value="credit_card">TC</option>
-                        </select>
-                      </label>
-                    </>
-                  ) : null}
 
                   <div className="full-span form-actions split-actions">
                     <button className="primary-btn" type="submit" disabled={savingEdit}>

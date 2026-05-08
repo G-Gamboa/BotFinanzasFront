@@ -251,6 +251,9 @@ export default function App() {
               userId={userId}
               api={api}
               categorias={categoriasAdmin}
+              catalogos={catalogos}
+              disponibles={disponibles}
+              tcBalances={tcBalances?.items || []}
               onRefreshData={loadAllData}
             />
           )}
