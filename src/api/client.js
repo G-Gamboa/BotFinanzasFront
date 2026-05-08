@@ -32,7 +32,12 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    const message = data?.detail || data?.message || 'Error en API'
+    const raw = data?.detail || data?.message || 'Error en API'
+    const message = Array.isArray(raw)
+      ? raw.map((e) => e?.msg || JSON.stringify(e)).join('; ')
+      : typeof raw === 'object'
+        ? JSON.stringify(raw)
+        : raw
     throw new Error(message)
   }
 
