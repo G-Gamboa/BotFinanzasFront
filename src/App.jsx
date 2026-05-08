@@ -242,6 +242,7 @@ export default function App() {
               palette={palette}
               dashboard={dashboard}
               showAmounts={showAmounts}
+              tcBalances={tcBalances?.items || []}
             />
           )}
 

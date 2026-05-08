@@ -9,6 +9,9 @@ const initialAccountForm = {
   accountType: 'bank',
   currency: 'GTQ',
   sortOrder: 0,
+  creditLimit: '',
+  billingCloseDay: '',
+  paymentDueDay: '',
 }
 
 const initialCategoryForm = {
@@ -125,6 +128,9 @@ export default function ConfiguracionPage({
       accountType: selectedAccount.account_type,
       currency: selectedAccount.currency,
       sortOrder: selectedAccount.sort_order ?? 0,
+      creditLimit: selectedAccount.credit_limit != null ? String(selectedAccount.credit_limit) : '',
+      billingCloseDay: selectedAccount.billing_close_day != null ? String(selectedAccount.billing_close_day) : '',
+      paymentDueDay: selectedAccount.payment_due_day != null ? String(selectedAccount.payment_due_day) : '',
     })
   }, [selectedAccount])
 
@@ -262,8 +268,8 @@ export default function ConfiguracionPage({
     clearMessages()
     try {
       await Promise.all([
-        api.patchCuenta(a.id, { telegram_user_id: Number(userId), name: a.name, account_type: a.account_type, currency: a.currency, sort_order: bOrder }),
-        api.patchCuenta(b.id, { telegram_user_id: Number(userId), name: b.name, account_type: b.account_type, currency: b.currency, sort_order: aOrder }),
+        api.patchCuenta(a.id, { telegram_user_id: Number(userId), name: a.name, account_type: a.account_type, currency: a.currency, sort_order: bOrder, credit_limit: a.credit_limit ?? null, billing_close_day: a.billing_close_day ?? null, payment_due_day: a.payment_due_day ?? null }),
+        api.patchCuenta(b.id, { telegram_user_id: Number(userId), name: b.name, account_type: b.account_type, currency: b.currency, sort_order: aOrder, credit_limit: b.credit_limit ?? null, billing_close_day: b.billing_close_day ?? null, payment_due_day: b.payment_due_day ?? null }),
       ])
       onRefreshData?.()
     } catch (err) { setError(err.message || 'No pude reordenar las cuentas.') }
@@ -293,12 +299,16 @@ export default function ConfiguracionPage({
     setSavingAccount(true)
 
     try {
+      const isTC = accountForm.accountType === 'credit_card'
       const payload = {
         telegram_user_id: Number(userId),
         name: accountForm.name,
         account_type: accountForm.accountType,
         currency: accountForm.currency,
         sort_order: Number(accountForm.sortOrder || 0),
+        credit_limit: isTC && accountForm.creditLimit ? Number(accountForm.creditLimit) : null,
+        billing_close_day: isTC && accountForm.billingCloseDay ? Number(accountForm.billingCloseDay) : null,
+        payment_due_day: isTC && accountForm.paymentDueDay ? Number(accountForm.paymentDueDay) : null,
       }
 
       if (selectedAccountId) {
@@ -566,12 +576,13 @@ export default function ConfiguracionPage({
               <span>Tipo</span>
               <select
                 value={accountForm.accountType}
-                onChange={(e) => setAccountForm((p) => ({ ...p, accountType: e.target.value }))}
+                onChange={(e) => setAccountForm((p) => ({ ...p, accountType: e.target.value, creditLimit: '', billingCloseDay: '', paymentDueDay: '' }))}
               >
                 <option value="cash">Efectivo</option>
                 <option value="bank">Banco</option>
                 <option value="investment">Inversión</option>
                 <option value="asset">Patrimonial</option>
+                <option value="credit_card">Tarjeta de Crédito</option>
               </select>
             </label>
 
@@ -594,6 +605,46 @@ export default function ConfiguracionPage({
                 onChange={(e) => setAccountForm((p) => ({ ...p, sortOrder: e.target.value }))}
               />
             </label>
+
+            {accountForm.accountType === 'credit_card' && (
+              <>
+                <label>
+                  <span>Límite de crédito</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    placeholder="Ej. 5000.00"
+                    value={accountForm.creditLimit}
+                    onChange={(e) => setAccountForm((p) => ({ ...p, creditLimit: e.target.value }))}
+                  />
+                </label>
+
+                <label>
+                  <span>Día de corte (1–28)</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="28"
+                    placeholder="Ej. 15"
+                    value={accountForm.billingCloseDay}
+                    onChange={(e) => setAccountForm((p) => ({ ...p, billingCloseDay: e.target.value }))}
+                  />
+                </label>
+
+                <label>
+                  <span>Día límite de pago (1–28)</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="28"
+                    placeholder="Ej. 5"
+                    value={accountForm.paymentDueDay}
+                    onChange={(e) => setAccountForm((p) => ({ ...p, paymentDueDay: e.target.value }))}
+                  />
+                </label>
+              </>
+            )}
 
             <div className="full-span form-actions split-actions">
               <button className="primary-btn" type="submit" disabled={savingAccount}>
