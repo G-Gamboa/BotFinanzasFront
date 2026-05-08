@@ -35,11 +35,21 @@ const initialPayForm = {
   note: '',
 }
 
-export default function DeudasPage({ userId, api, disponibles, deudas, onRefreshData }) {
+const initialTCPayForm = {
+  creditCardAccountId: '',
+  amount: '',
+  paymentDate: getGuatemalaDateString(),
+  accountName: 'Efectivo',
+  note: '',
+}
+
+export default function DeudasPage({ userId, api, catalogos, disponibles, deudas, tcBalances = [], onRefreshData }) {
   const [createForm, setCreateForm] = useState(initialCreateForm)
   const [payForm, setPayForm] = useState(initialPayForm)
+  const [tcPayForm, setTcPayForm] = useState(initialTCPayForm)
   const [createSaving, setCreateSaving] = useState(false)
   const [paySaving, setPaySaving] = useState(false)
+  const [tcPaySaving, setTcPaySaving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -53,6 +63,13 @@ export default function DeudasPage({ userId, api, disponibles, deudas, onRefresh
     () => (disponibles?.saldos_liquidos || []).filter((item) => item.cuenta !== 'Efectivo'),
     [disponibles],
   )
+
+  const liquidAccounts = useMemo(
+    () => disponibles?.saldos_liquidos || [],
+    [disponibles],
+  )
+
+  const hasTCCards = tcBalances.length > 0
 
   function updateCreate(field, value) {
     setCreateForm((prev) => ({ ...prev, [field]: value }))
@@ -96,6 +113,36 @@ export default function DeudasPage({ userId, api, disponibles, deudas, onRefresh
       setError(err.message || 'No pude crear la deuda.')
     } finally {
       setCreateSaving(false)
+    }
+  }
+
+  function updateTCPay(field, value) {
+    setTcPayForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  async function submitTCPay(e) {
+    e.preventDefault()
+    setTcPaySaving(true)
+    setMessage('')
+    setError('')
+
+    try {
+      await api.postTCPayment({
+        telegram_user_id: Number(userId),
+        credit_card_account_id: Number(tcPayForm.creditCardAccountId),
+        amount: Number(tcPayForm.amount),
+        payment_date: tcPayForm.paymentDate,
+        account_name: tcPayForm.accountName,
+        note: tcPayForm.note || null,
+      })
+
+      setMessage('Abono a tarjeta registrado correctamente.')
+      setTcPayForm({ ...initialTCPayForm, paymentDate: getGuatemalaDateString() })
+      onRefreshData?.()
+    } catch (err) {
+      setError(err.message || 'No pude registrar el abono.')
+    } finally {
+      setTcPaySaving(false)
     }
   }
 
@@ -293,6 +340,101 @@ export default function DeudasPage({ userId, api, disponibles, deudas, onRefresh
           </div>
         ) : <EmptyState text="No hay deudas activas." />}
       </Panel>
+
+      {/* ── Tarjetas de Crédito ── */}
+      {hasTCCards && (
+        <>
+          <Panel title="Tarjetas de crédito">
+            <div className="list-stack">
+              {tcBalances.map((tc) => (
+                <div className="debt-card" key={tc.id}>
+                  <div>
+                    <strong>{tc.name}</strong>
+                    <small>Tarjeta de crédito</small>
+                  </div>
+                  <div className="debt-meta">
+                    <span style={{ color: tc.balance > 0 ? 'var(--color-danger, #e53)' : 'inherit' }}>
+                      Saldo pendiente: {q(tc.balance)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Panel>
+
+          <Panel title="Abonar a tarjeta">
+            <form className="form-grid" onSubmit={submitTCPay}>
+              <label>
+                <span>Tarjeta</span>
+                <select
+                  value={tcPayForm.creditCardAccountId}
+                  onChange={(e) => updateTCPay('creditCardAccountId', e.target.value)}
+                  required
+                >
+                  <option value="">Selecciona tarjeta</option>
+                  {tcBalances.map((tc) => (
+                    <option key={tc.id} value={tc.id}>
+                      {tc.name} · Saldo {q(tc.balance)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <span>Monto del abono</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={tcPayForm.amount}
+                  onChange={(e) => updateTCPay('amount', e.target.value)}
+                  required
+                />
+              </label>
+
+              <label>
+                <span>Fecha</span>
+                <input
+                  type="date"
+                  value={tcPayForm.paymentDate}
+                  onChange={(e) => updateTCPay('paymentDate', e.target.value)}
+                  required
+                />
+              </label>
+
+              <label>
+                <span>Pagar desde</span>
+                <select value={tcPayForm.accountName} onChange={(e) => updateTCPay('accountName', e.target.value)}>
+                  {liquidAccounts.map((item) => (
+                    <option key={item.cuenta} value={item.cuenta}>
+                      {item.cuenta} · Disponible {q(item.saldo)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="full-span">
+                <span>Nota</span>
+                <input
+                  value={tcPayForm.note}
+                  onChange={(e) => updateTCPay('note', e.target.value)}
+                  placeholder="Opcional"
+                />
+              </label>
+
+              <div className="full-span form-actions">
+                <button
+                  className="primary-btn"
+                  type="submit"
+                  disabled={tcPaySaving || !userId || !tcPayForm.creditCardAccountId || !tcPayForm.amount}
+                >
+                  {tcPaySaving ? 'Guardando...' : 'Registrar abono'}
+                </button>
+              </div>
+            </form>
+          </Panel>
+        </>
+      )}
     </div>
   )
 }

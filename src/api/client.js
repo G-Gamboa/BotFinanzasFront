@@ -137,6 +137,12 @@ export const api = {
   deleteSavingsGoal: (goalId) =>
     request(`/savings-goals/${goalId}`, { method: 'DELETE' }),
 
+  getTCBalances: (userId) => request(`/tc-balances/${userId}`),
+  postTCPayment: (payload) =>
+    request('/tc-payments', { method: 'POST', body: JSON.stringify(payload) }),
+  anularTCPayment: (paymentId, payload) =>
+    request(`/tc-payments/${paymentId}/anular`, { method: 'PATCH', body: JSON.stringify(payload) }),
+
   getAdminUsuarios: () => request('/admin/usuarios'),
   postCrearUsuario: (payload) =>
     request('/admin/usuarios', { method: 'POST', body: JSON.stringify(payload) }),

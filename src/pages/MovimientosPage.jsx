@@ -12,6 +12,7 @@ const initialForm = {
   categoryName: '',
   paymentMethod: 'Efectivo',
   accountName: 'Efectivo',
+  creditCardAccountId: '',
 
   movSubtype: 'NORMAL',
   movDirection: 'NORMAL',
@@ -45,6 +46,11 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
 
   const egrCategories = useMemo(
     () => (catalogos?.categories?.egr || []).map((c) => c.name),
+    [catalogos]
+  )
+
+  const creditCards = useMemo(
+    () => catalogos?.accounts?.credit_cards || [],
     [catalogos]
   )
 
@@ -109,13 +115,20 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
           next.categoryName = egrCategories[0] || ''
           next.paymentMethod = 'Efectivo'
           next.accountName = 'Efectivo'
+          next.creditCardAccountId = ''
         } else if (value === 'MOV') {
           next.categoryName = ''
         }
       }
 
       if (field === 'paymentMethod') {
-        next.accountName = value === 'Transferencia' ? (transferAccounts[0] || '') : 'Efectivo'
+        if (value === 'Tarjeta de Crédito') {
+          next.accountName = ''
+          next.creditCardAccountId = creditCards[0]?.id?.toString() || ''
+        } else {
+          next.accountName = value === 'Transferencia' ? (transferAccounts[0] || '') : 'Efectivo'
+          next.creditCardAccountId = ''
+        }
       }
 
       if (field === 'movDirection') {
@@ -258,6 +271,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
       let payload = null
 
       if (form.movementType === 'ING' || form.movementType === 'EGR') {
+        const isTarjeta = form.paymentMethod === 'Tarjeta de Crédito'
         payload = {
           telegram_user_id: Number(userId),
           movement_type: form.movementType,
@@ -266,7 +280,12 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
           note: form.note || null,
           category_name: form.categoryName,
           payment_method: form.paymentMethod,
-          account_name: form.paymentMethod === 'Transferencia' ? form.accountName : 'Efectivo',
+          account_name: isTarjeta
+            ? null
+            : form.paymentMethod === 'Transferencia'
+              ? form.accountName
+              : 'Efectivo',
+          credit_card_account_id: isTarjeta ? Number(form.creditCardAccountId) : null,
         }
       }
 
@@ -382,6 +401,9 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                 <select value={form.paymentMethod} onChange={(e) => updateField('paymentMethod', e.target.value)}>
                   <option value="Efectivo">Efectivo</option>
                   <option value="Transferencia">Transferencia</option>
+                  {form.movementType === 'EGR' && creditCards.length > 0 && (
+                    <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                  )}
                 </select>
               </label>
 
@@ -396,7 +418,22 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                 </label>
               )}
 
-              {form.movementType === 'EGR' ? (
+              {form.paymentMethod === 'Tarjeta de Crédito' && (
+                <label>
+                  <span>Tarjeta</span>
+                  <select
+                    value={form.creditCardAccountId}
+                    onChange={(e) => updateField('creditCardAccountId', e.target.value)}
+                    required
+                  >
+                    {creditCards.map((tc) => (
+                      <option key={tc.id} value={tc.id}>{tc.name}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              {form.movementType === 'EGR' && form.paymentMethod !== 'Tarjeta de Crédito' ? (
                 <div className="full-span helper-text">
                   Disponible: Q{' '}
                   {getSaldoDisponible(form.paymentMethod === 'Transferencia' ? form.accountName : 'Efectivo').toFixed(2)}

@@ -58,6 +58,7 @@ export default function App() {
   const [categoriasAdmin, setCategoriasAdmin] = useState(null)
   const [loanPeopleAdmin, setLoanPeopleAdmin] = useState(null)
   const [preferencias, setPreferencias] = useState(null)
+  const [tcBalances, setTcBalances] = useState(null)
 
   const userId = tgUserId || manualUserId
   const canPrivate = Boolean(catalogos?.user?.can_use_private_palettes)
@@ -89,6 +90,7 @@ export default function App() {
         categoriasData,
         loanPeopleData,
         preferenciasData,
+        tcBalancesData,
       ] = await Promise.all([
         api.getHealth(),
         api.getCatalogos(userId),
@@ -99,6 +101,7 @@ export default function App() {
         api.getCategoriasAdmin(userId),
         api.getLoanPeopleAdmin(userId),
         api.getPreferencias(userId),
+        api.getTCBalances(userId),
       ])
 
       setHealth(healthData)
@@ -110,6 +113,7 @@ export default function App() {
       setCategoriasAdmin(categoriasData)
       setLoanPeopleAdmin(loanPeopleData)
       setPreferencias(preferenciasData)
+      setTcBalances(tcBalancesData)
     } catch (err) {
       setError(err.message || 'No pude cargar la información.')
     } finally {
@@ -225,6 +229,7 @@ export default function App() {
               disponibles={disponibles}
               deudas={deudas}
               deudasActivas={deudasActivas}
+              tcBalances={tcBalances?.items || []}
               onRefreshData={loadAllData}
             />
           )}
