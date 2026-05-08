@@ -37,6 +37,7 @@ function getOrigenText(item) {
   if (item.payment_method === 'credit_card') {
     return item.credit_card_account_name ? `TC: ${item.credit_card_account_name}` : 'TC'
   }
+  if (item.payment_method === 'cash' && item.movement_type === 'EGR') return null
   const method = fmtMethod(item.payment_method)
   const account = item.transfer_account || item.source_account || item.target_account
   if (account && method) return `${method}: ${account}`
@@ -387,7 +388,7 @@ export default function HistorialPage({
               ) : null}
 
               {item.note ? (
-                <div className="history-note">{item.note}</div>
+                <div className="history-note">Nota: {item.note}</div>
               ) : null}
 
               {editingId === item.id && item.record_type === 'movement' ? (
