@@ -292,7 +292,9 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
               <div className="history-row history-row-top">
                 <div className="history-top-left">
                   <strong>{item.movement_date}</strong>
-
+                  <span className={`history-chip history-chip-${String(item.movement_type).toLowerCase()}`}>
+                    {item.movement_type}
+                  </span>
                   <span className="history-chip history-chip-subtype">
                     {item.subtype}
                   </span>
@@ -306,6 +308,10 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
                 </div>
               </div>
 
+              <div className="history-row small history-wrap">
+                <span>ID: {item.id}</span>
+                {renderSecondaryLine(item) ? <span>{renderSecondaryLine(item)}</span> : null}
+              </div>
 
               {item.note ? (
                 <div className="history-note">
