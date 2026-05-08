@@ -30,7 +30,7 @@ const initialCreateForm = {
 const initialPayForm = {
   debtId: '',
   paymentDate: getGuatemalaDateString(),
-  paymentMethod: 'Efectivo',
+  paymentMethod: 'cash',
   accountName: 'Efectivo',
   note: '',
 }
@@ -79,7 +79,7 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
     setPayForm((prev) => {
       const next = { ...prev, [field]: value }
       if (field === 'paymentMethod') {
-        next.accountName = value === 'Transferencia' ? (transferAccounts[0]?.cuenta || '') : 'Efectivo'
+        next.accountName = value === 'transfer' ? (transferAccounts[0]?.cuenta || '') : 'Efectivo'
       }
       return next
     })
@@ -158,7 +158,7 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
         debt_id: Number(payForm.debtId),
         payment_date: payForm.paymentDate,
         payment_method: payForm.paymentMethod,
-        account_name: payForm.paymentMethod === 'Transferencia' ? payForm.accountName : 'Efectivo',
+        account_name: payForm.paymentMethod === 'transfer' ? payForm.accountName : 'Efectivo',
         note: payForm.note || null,
       })
 
@@ -255,12 +255,12 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
             <label>
               <span>Método</span>
               <select value={payForm.paymentMethod} onChange={(e) => updatePay('paymentMethod', e.target.value)}>
-                <option value="Efectivo">Efectivo</option>
-                <option value="Transferencia">Transferencia</option>
+                <option value="cash">Efectivo</option>
+                <option value="transfer">Transferencia</option>
               </select>
             </label>
 
-            {payForm.paymentMethod === 'Transferencia' && (
+            {payForm.paymentMethod === 'transfer' && (
               <label>
                 <span>Cuenta</span>
                 <select value={payForm.accountName} onChange={(e) => updatePay('accountName', e.target.value)} required>

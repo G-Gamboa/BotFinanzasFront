@@ -376,8 +376,8 @@ export default function HistorialPage({ userId, api, categorias, onRefreshData }
                           onChange={(e) => setEditForm((p) => ({ ...p, payment_method: e.target.value }))}
                         >
                           <option value="">Sin cambio</option>
-                          <option value="Efectivo">Efectivo</option>
-                          <option value="Transferencia">Transferencia</option>
+                          <option value="cash">Efectivo</option>
+                          <option value="transfer">Transferencia</option>
                         </select>
                       </label>
                     </>
