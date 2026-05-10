@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Layout from './components/Layout'
 import NavTabs from './components/NavTabs'
 import MessageBanner from './components/MessageBanner'
@@ -8,6 +8,12 @@ import DeudasPage from './pages/DeudasPage'
 import PrestamosPage from './pages/PrestamosPage'
 import ConfiguracionPage from './pages/ConfiguracionPage'
 import { api } from './api/client'
+import {
+  cacheSet,
+  cacheReadAll,
+  cacheInvalidateAll,
+  cacheInvalidateFinancial,
+} from './lib/cache'
 import { useTelegramMiniApp } from './hooks/useTelegramMiniApp'
 import { getPaletteByKey } from './theme'
 import { applyTheme } from './theme/applyTheme'
@@ -50,6 +56,11 @@ export default function App() {
   const [error, setError] = useState('')
   const [health, setHealth] = useState(null)
 
+  // Evita lanzar dos revalidaciones simultáneas (ej. visibilitychange + mount)
+  const fetchingRef = useRef(false)
+  // Timestamp de la última vez que se trajo data fresca del servidor
+  const lastFetchRef = useRef(0)
+
   const [catalogos, setCatalogos] = useState(null)
   const [dashboard, setDashboard] = useState(null)
   const [disponibles, setDisponibles] = useState(null)
@@ -74,57 +85,117 @@ export default function App() {
     applyTheme(palette)
   }, [palette])
 
-  async function loadAllData() {
-    if (!userId) return
-    setLoading(true)
-    setError('')
+  const loadAllData = useCallback(
+    async ({ invalidateFinancial = false, invalidateAll = false } = {}) => {
+      if (!userId) return
+      if (fetchingRef.current) return
 
-    try {
-      const [
-        healthData,
-        catalogosData,
-        dashboardData,
-        disponiblesData,
-        deudasData,
-        cuentasData,
-        categoriasData,
-        loanPeopleData,
-        preferenciasData,
-        tcBalancesData,
-      ] = await Promise.all([
-        api.getHealth(),
-        api.getCatalogos(userId),
-        api.getDashboard(userId),
-        api.getDisponibles(userId),
-        api.getDeudas(userId),
-        api.getCuentas(userId),
-        api.getCategoriasAdmin(userId),
-        api.getLoanPeopleAdmin(userId),
-        api.getPreferencias(userId),
-        api.getTCBalances(userId),
-      ])
+      // Invalida caché según el tipo de mutación antes de aplicar el stale
+      if (invalidateAll) cacheInvalidateAll(userId)
+      else if (invalidateFinancial) cacheInvalidateFinancial(userId)
 
-      setHealth(healthData)
-      setCatalogos(catalogosData)
-      setDashboard(dashboardData)
-      setDisponibles(disponiblesData)
-      setDeudas(deudasData)
-      setCuentasAdmin(cuentasData)
-      setCategoriasAdmin(categoriasData)
-      setLoanPeopleAdmin(loanPeopleData)
-      setPreferencias(preferenciasData)
-      setTcBalances(tcBalancesData)
-    } catch (err) {
-      setError(err.message || 'No pude cargar la información.')
-    } finally {
-      setLoading(false)
-    }
-  }
+      // ── Paso 1: mostrar datos cacheados al instante ────────────────────────
+      const cached = cacheReadAll(userId)
+      const hasCached = Object.values(cached).some((v) => v !== null)
+
+      if (hasCached) {
+        if (cached.catalogos)   setCatalogos(cached.catalogos)
+        if (cached.dashboard)   setDashboard(cached.dashboard)
+        if (cached.disponibles) setDisponibles(cached.disponibles)
+        if (cached.deudas)      setDeudas(cached.deudas)
+        if (cached.cuentas)     setCuentasAdmin(cached.cuentas)
+        if (cached.categorias)  setCategoriasAdmin(cached.categorias)
+        if (cached.loanPeople)  setLoanPeopleAdmin(cached.loanPeople)
+        if (cached.preferencias) setPreferencias(cached.preferencias)
+        if (cached.tcBalances)  setTcBalances(cached.tcBalances)
+      }
+
+      // Solo muestra spinner si no hay nada en caché (primera vez)
+      if (!hasCached) setLoading(true)
+      setError('')
+      fetchingRef.current = true
+
+      // ── Paso 2: traer datos frescos en segundo plano ───────────────────────
+      try {
+        const [
+          healthData,
+          catalogosData,
+          dashboardData,
+          disponiblesData,
+          deudasData,
+          cuentasData,
+          categoriasData,
+          loanPeopleData,
+          preferenciasData,
+          tcBalancesData,
+        ] = await Promise.all([
+          api.getHealth(),
+          api.getCatalogos(userId),
+          api.getDashboard(userId),
+          api.getDisponibles(userId),
+          api.getDeudas(userId),
+          api.getCuentas(userId),
+          api.getCategoriasAdmin(userId),
+          api.getLoanPeopleAdmin(userId),
+          api.getPreferencias(userId),
+          api.getTCBalances(userId),
+        ])
+
+        setHealth(healthData)
+        setCatalogos(catalogosData)
+        setDashboard(dashboardData)
+        setDisponibles(disponiblesData)
+        setDeudas(deudasData)
+        setCuentasAdmin(cuentasData)
+        setCategoriasAdmin(categoriasData)
+        setLoanPeopleAdmin(loanPeopleData)
+        setPreferencias(preferenciasData)
+        setTcBalances(tcBalancesData)
+
+        lastFetchRef.current = Date.now()
+
+        // ── Paso 3: persistir datos frescos al caché ─────────────────────────
+        cacheSet('catalogos',    userId, catalogosData)
+        cacheSet('dashboard',    userId, dashboardData)
+        cacheSet('disponibles',  userId, disponiblesData)
+        cacheSet('deudas',       userId, deudasData)
+        cacheSet('cuentas',      userId, cuentasData)
+        cacheSet('categorias',   userId, categoriasData)
+        cacheSet('loanPeople',   userId, loanPeopleData)
+        cacheSet('preferencias', userId, preferenciasData)
+        cacheSet('tcBalances',   userId, tcBalancesData)
+      } catch (err) {
+        // Si había caché, el usuario ya tiene datos; no mostrar error en pantalla
+        if (!hasCached) setError(err.message || 'No pude cargar la información.')
+      } finally {
+        setLoading(false)
+        fetchingRef.current = false
+      }
+    },
+    [userId]
+  )
 
   useEffect(() => {
     if (!isReady) return
     loadAllData()
   }, [isReady, userId])
+
+  // Revalidar cuando el usuario vuelve a la app (Telegram Mini App backgrounded)
+  // Mínimo 60 s entre revalidaciones silenciosas para no saturar la API.
+  useEffect(() => {
+    if (!isReady || !userId) return
+
+    function handleVisibility() {
+      if (document.visibilityState !== 'visible') return
+      const secondsSinceFetch = (Date.now() - lastFetchRef.current) / 1000
+      if (secondsSinceFetch > 60) {
+        loadAllData()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [isReady, userId, loadAllData])
 
   useEffect(() => {
     if (!preferencias || prefsApplied) return
@@ -181,7 +252,7 @@ export default function App() {
               <span>User ID</span>
               <input value={manualUserId} onChange={(e) => setManualUserId(e.target.value)} />
             </label>
-            <button className="primary-btn" onClick={loadAllData}>Cargar</button>
+            <button className="primary-btn" onClick={() => loadAllData({ invalidateAll: true })}>Cargar</button>
           </div>
         </section>
       )}
@@ -203,7 +274,7 @@ export default function App() {
           canUsePrestamos={canUsePrestamos}
           canPrivate={canPrivate}
           isAdmin={Boolean(catalogos?.user?.is_admin)}
-          onRefreshData={loadAllData}
+          onRefreshData={() => loadAllData({ invalidateAll: true })}
         />
       ) : (
         <>
@@ -217,7 +288,7 @@ export default function App() {
               disponibles={disponibles}
               dashboard={dashboard}
               savingsGoals={dashboard?.savings_goals || []}
-              onRefreshData={loadAllData}
+              onRefreshData={() => loadAllData({ invalidateFinancial: true })}
             />
           )}
 
@@ -230,7 +301,7 @@ export default function App() {
               deudas={deudas}
               deudasActivas={deudasActivas}
               tcBalances={tcBalances?.items || []}
-              onRefreshData={loadAllData}
+              onRefreshData={() => loadAllData({ invalidateFinancial: true })}
             />
           )}
 
@@ -254,7 +325,7 @@ export default function App() {
               catalogos={catalogos}
               disponibles={disponibles}
               tcBalances={tcBalances?.items || []}
-              onRefreshData={loadAllData}
+              onRefreshData={() => loadAllData({ invalidateFinancial: true })}
             />
           )}
 
@@ -264,7 +335,7 @@ export default function App() {
               api={api}
               catalogos={catalogos}
               disponibles={disponibles}
-              onRefreshData={loadAllData}
+              onRefreshData={() => loadAllData({ invalidateFinancial: true })}
             />
           )}
         </>
