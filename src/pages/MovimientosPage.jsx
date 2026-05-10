@@ -73,6 +73,11 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
     [disponibles]
   )
 
+  const goalsWithBalance = useMemo(
+    () => (savingsGoals || []).filter((g) => g.current_amount > 0),
+    [savingsGoals]
+  )
+
   const prestamosDisponibles = useMemo(
     () => disponibles?.prestamos_por_persona || [],
     [disponibles]
@@ -223,6 +228,11 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
     return Number(found?.saldo || 0)
   }
 
+  function getGoalDisponible(goalId) {
+    const found = (savingsGoals || []).find((g) => String(g.id) === String(goalId))
+    return Number(found?.current_amount || 0)
+  }
+
   function getPrestamoDisponible(persona) {
     const found = prestamosDisponibles.find((item) => item.persona === persona)
     return Number(found?.saldo || 0)
@@ -313,6 +323,7 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
             payload.savings_goal_id = form.savingsGoalId ? Number(form.savingsGoalId) : null
           } else {
             payload.target_account_name = form.targetAccountName
+            payload.savings_goal_id = form.savingsGoalId ? Number(form.savingsGoalId) : null
           }
         }
 
@@ -536,7 +547,30 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
 
                       {form.targetAccountName ? (
                         <div className="full-span helper-text">
-                          Disponible: Q {getAhorroDisponible(form.targetAccountName).toFixed(2)}
+                          Disponible total: Q {getAhorroDisponible(form.targetAccountName).toFixed(2)}
+                        </div>
+                      ) : null}
+
+                      {goalsWithBalance.length > 0 ? (
+                        <label>
+                          <span>Retirar de</span>
+                          <select
+                            value={form.savingsGoalId}
+                            onChange={(e) => updateField('savingsGoalId', e.target.value)}
+                          >
+                            <option value="">Ahorro general</option>
+                            {goalsWithBalance.map((g) => (
+                              <option key={g.id} value={String(g.id)}>
+                                {g.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
+
+                      {form.savingsGoalId ? (
+                        <div className="full-span helper-text">
+                          Disponible en meta: Q {getGoalDisponible(form.savingsGoalId).toFixed(2)}
                         </div>
                       ) : null}
                     </>
