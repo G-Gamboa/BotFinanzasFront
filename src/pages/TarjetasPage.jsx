@@ -278,6 +278,16 @@ export default function TarjetasPage({
             const vcBalance = tc.visacuota_remaining ?? tc.visacuota_balance ?? 0
             const vcLimit   = tc.visacuotas_limit  ?? null
 
+            // Disponible general (en moneda nativa de la TC)
+            const availGeneral = nativeLimit != null
+              ? Math.max(0, nativeLimit - nativeBalance)
+              : null
+
+            // Disponible Visacuotas
+            const availVC = vcLimit != null
+              ? Math.max(0, vcLimit - vcBalance)
+              : null
+
             return (
               <div key={tc.id} className="tc-card">
                 {/* Cabecera */}
@@ -327,6 +337,32 @@ export default function TarjetasPage({
                     </div>
                   )}
                 </div>
+
+                {/* Disponible */}
+                {(availGeneral != null || availVC != null) && (
+                  <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
+                    {availGeneral != null && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <span style={{ fontSize: '0.68rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Disponible
+                        </span>
+                        <strong style={{ fontSize: '0.9rem', color: availGeneral > 0 ? 'var(--color-success, #43a047)' : 'var(--color-danger, #e53935)' }}>
+                          {isUSD ? usd(availGeneral) : q(availGeneral)}
+                        </strong>
+                      </div>
+                    )}
+                    {availVC != null && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <span style={{ fontSize: '0.68rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Disp. Visacuotas
+                        </span>
+                        <strong style={{ fontSize: '0.9rem', color: availVC > 0 ? 'var(--color-success, #43a047)' : 'var(--color-danger, #e53935)' }}>
+                          {isUSD ? usd(availVC) : q(availVC)}
+                        </strong>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Barras de uso */}
                 <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
