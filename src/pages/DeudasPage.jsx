@@ -53,7 +53,8 @@ const initialPayForm = {
 const initialTCPayForm = {
   creditCardAccountId: '',
   amount: '',
-  amountUsd: '',        // solo para TC USD
+  amountUsd: '',          // USD TC: $ pagados; MIXTO porción $: $ pagados
+  mixtoPayPortion: 'Q',   // solo MIXTO: 'Q' | 'USD' — qué porción se está pagando
   paymentDate: getGuatemalaDateString(),
   accountName: 'Efectivo',
   note: '',
@@ -123,7 +124,10 @@ export default function DeudasPage({
     () => tcBalances.find((tc) => String(tc.id) === String(tcPayForm.creditCardAccountId)),
     [tcBalances, tcPayForm.creditCardAccountId],
   )
-  const isUsdTC = selectedTC?.tc_type === 'USD'
+  const isUsdTC   = selectedTC?.tc_type === 'USD'
+  const isMixtoTC = selectedTC?.tc_type === 'MIXTO'
+  // Para MIXTO, el pago de porción $ también lleva amountUsd
+  const needsUsdFields = isUsdTC || (isMixtoTC && tcPayForm.mixtoPayPortion === 'USD')
 
   // Credit cards available in catalogos
   const ccCatalog = useMemo(
@@ -150,8 +154,17 @@ export default function DeudasPage({
   function updateTCPay(field, value) {
     setTcPayForm((prev) => {
       const next = { ...prev, [field]: value }
-      // Reset USD amount when TC changes
-      if (field === 'creditCardAccountId') next.amountUsd = ''
+      // Al cambiar de TC: resetear montos y porción
+      if (field === 'creditCardAccountId') {
+        next.amountUsd = ''
+        next.amount = ''
+        next.mixtoPayPortion = 'Q'
+      }
+      // Al cambiar porción MIXTO: resetear montos
+      if (field === 'mixtoPayPortion') {
+        next.amountUsd = ''
+        next.amount = ''
+      }
       return next
     })
   }
@@ -247,8 +260,8 @@ export default function DeudasPage({
         account_name: tcPayForm.accountName,
         note: tcPayForm.note || null,
       }
-      // Para TC USD: incluir monto en dólares pagados
-      if (isUsdTC && tcPayForm.amountUsd) {
+      // Para TC USD o MIXTO porción $: incluir monto en dólares pagados
+      if (needsUsdFields && tcPayForm.amountUsd) {
         payload.amount_usd = Number(tcPayForm.amountUsd)
       }
       await api.postTCPayment(payload)
@@ -490,10 +503,28 @@ export default function DeudasPage({
                     </small>
                   </div>
                   <div className="debt-meta">
-                    <span style={{ color: tc.balance > 0 ? 'var(--color-danger, #e53)' : 'inherit' }}>
-                      Saldo: {formatBalance(tc)}
-                      {tc.tc_type === 'USD' && ` (≈ ${q(tc.balance_gtq)})`}
-                    </span>
+                    {tc.tc_type === 'MIXTO' ? (
+                      /* MIXTO: mostrar Q y $ por separado */
+                      <>
+                        {(tc.balance_gtq_portion ?? 0) > 0 && (
+                          <span style={{ color: 'var(--color-danger, #e53)' }}>
+                            Saldo Q: {q(tc.balance_gtq_portion)}
+                          </span>
+                        )}
+                        {(tc.balance_usd_portion ?? 0) > 0 && (
+                          <span style={{ color: 'var(--color-danger, #e53)' }}>
+                            Saldo $: {usd(tc.balance_usd_portion)}
+                            <span style={{ opacity: 0.7 }}> (≈ {q((tc.balance_usd_portion ?? 0) * (tc.tc_exchange_rate ?? 8))})</span>
+                          </span>
+                        )}
+                        <span>Total Q ≈ {q(tc.balance_gtq)}</span>
+                      </>
+                    ) : (
+                      <span style={{ color: tc.balance > 0 ? 'var(--color-danger, #e53)' : 'inherit' }}>
+                        Saldo: {formatBalance(tc)}
+                        {tc.tc_type === 'USD' && ` (≈ ${q(tc.balance_gtq)})`}
+                      </span>
+                    )}
                     {tc.visacuota_balance > 0 && (
                       <span>Visacuotas: {tc.tc_type === 'USD' ? usd(tc.visacuota_balance) : q(tc.visacuota_balance)}</span>
                     )}
@@ -526,28 +557,80 @@ export default function DeudasPage({
                 </select>
               </label>
 
-              {/* Indicador de tipo de TC seleccionada */}
+              {/* ── Indicador de saldo por tipo de TC ── */}
               {selectedTC && (
-                <div className="full-span helper-text" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span>
-                    {selectedTC.tc_type === 'USD'
-                      ? '💵 Tarjeta en dólares — el saldo se maneja en USD, el débito es en Q'
-                      : selectedTC.tc_type === 'MIXTO'
-                      ? '🔀 Tarjeta mixta Q/$ — el saldo total se lleva en Q'
-                      : '🇬🇹 Tarjeta en quetzales'}
-                  </span>
-                  <strong>Saldo actual: {formatBalance(selectedTC)}</strong>
-                  {selectedTC.tc_type === 'USD' && selectedTC.balance_gtq !== undefined && (
-                    <span>(≈ {q(selectedTC.balance_gtq)})</span>
+                <div className="full-span" style={{ display: 'grid', gap: 6 }}>
+                  {/* GTQ */}
+                  {selectedTC.tc_type === 'GTQ' && (
+                    <div className="helper-text">
+                      🇬🇹 Tarjeta en Q &nbsp;·&nbsp; Saldo: <strong>{q(selectedTC.balance)}</strong>
+                    </div>
+                  )}
+
+                  {/* USD */}
+                  {selectedTC.tc_type === 'USD' && (
+                    <div className="helper-text">
+                      💵 Tarjeta en $ &nbsp;·&nbsp;
+                      Saldo en $: <strong>{usd(selectedTC.balance)}</strong>
+                      &nbsp;·&nbsp;
+                      Equiv. Q ≈ <strong>{q(selectedTC.balance_gtq)}</strong>
+                    </div>
+                  )}
+
+                  {/* MIXTO — muestra ambas porciones */}
+                  {selectedTC.tc_type === 'MIXTO' && (
+                    <div className="helper-text" style={{ display: 'grid', gap: 4 }}>
+                      <span>🔀 Tarjeta Mixta Q/$</span>
+                      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                        <span>
+                          Saldo en Q: <strong>{q(selectedTC.balance_gtq_portion ?? 0)}</strong>
+                        </span>
+                        <span>
+                          Saldo en $: <strong>{usd(selectedTC.balance_usd_portion ?? 0)}</strong>
+                          &nbsp;<span style={{ opacity: 0.7 }}>(≈ {q((selectedTC.balance_usd_portion ?? 0) * (selectedTC.tc_exchange_rate ?? 8))})</span>
+                        </span>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
 
-              {/* Para TC USD: mostrar monto en $ y monto en Q por separado */}
-              {isUsdTC ? (
+              {/* ── Para TC MIXTO: selector de porción a pagar ── */}
+              {isMixtoTC && (
+                <div className="full-span" style={{ display: 'flex', gap: 8 }}>
+                  <label style={{ flex: 1 }}>
+                    <input
+                      type="radio"
+                      name="mixtoPayPortion"
+                      value="Q"
+                      checked={tcPayForm.mixtoPayPortion === 'Q'}
+                      onChange={() => updateTCPay('mixtoPayPortion', 'Q')}
+                    />
+                    {' '}Pagar saldo en Q
+                  </label>
+                  <label style={{ flex: 1 }}>
+                    <input
+                      type="radio"
+                      name="mixtoPayPortion"
+                      value="USD"
+                      checked={tcPayForm.mixtoPayPortion === 'USD'}
+                      onChange={() => updateTCPay('mixtoPayPortion', 'USD')}
+                    />
+                    {' '}Pagar saldo en $
+                  </label>
+                </div>
+              )}
+
+              {/* ── Campos de monto según tipo / porción ── */}
+              {needsUsdFields ? (
+                /* TC USD  o  MIXTO pagando porción $ */
                 <>
                   <label>
-                    <span>Dólares pagados a la TC ($)</span>
+                    <span>
+                      {isMixtoTC
+                        ? 'Dólares que abonarás a la TC ($)'
+                        : 'Dólares pagados a la TC ($)'}
+                    </span>
                     <input
                       type="number"
                       min="0.01"
@@ -559,24 +642,33 @@ export default function DeudasPage({
                     />
                   </label>
                   <label>
-                    <span>Quetzales debitados de tu cuenta (Q)</span>
+                    <span>Quetzales que saldrán de tu cuenta (Q)</span>
                     <input
                       type="number"
                       min="0.01"
                       step="0.01"
-                      placeholder="Q exactos que saldrán de tu cuenta"
+                      placeholder="Q exactos debitados de tu cuenta"
                       value={tcPayForm.amount}
                       onChange={(e) => updateTCPay('amount', e.target.value)}
                       required
                     />
                   </label>
                   <div className="full-span helper-text">
-                    💡 Los $ reducen el saldo de la TC. Los Q se debitan de tu cuenta líquida.
+                    💡 Los $ reducen el saldo en $ de la TC.
+                    Los Q se debitan de tu cuenta líquida.
+                    {isMixtoTC && selectedTC?.tc_exchange_rate && tcPayForm.amountUsd && (
+                      <> &nbsp;·&nbsp; Ref: {usd(tcPayForm.amountUsd)} ≈ {q(Number(tcPayForm.amountUsd) * Number(selectedTC.tc_exchange_rate))}</>
+                    )}
                   </div>
                 </>
               ) : (
+                /* GTQ o MIXTO pagando porción Q */
                 <label>
-                  <span>Monto del abono (Q)</span>
+                  <span>
+                    {isMixtoTC
+                      ? 'Quetzales que abonarás al saldo en Q'
+                      : 'Monto del abono (Q)'}
+                  </span>
                   <input
                     type="number"
                     min="0.01"
@@ -627,7 +719,7 @@ export default function DeudasPage({
                     tcPaySaving || !userId ||
                     !tcPayForm.creditCardAccountId ||
                     !tcPayForm.amount ||
-                    (isUsdTC && !tcPayForm.amountUsd)
+                    (needsUsdFields && !tcPayForm.amountUsd)
                   }
                 >
                   {tcPaySaving ? 'Guardando...' : 'Registrar abono'}
