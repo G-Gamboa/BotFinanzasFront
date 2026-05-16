@@ -75,7 +75,7 @@ select {
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 0.85rem 1rem;
+  padding: 0.65rem 0.9rem;
 }
 
 select option {
@@ -94,15 +94,15 @@ select option {
 .topbar {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
+  align-items: center;
+  gap: 0.75rem;
   width: 100%;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
 .topbar h1 {
   margin: 0;
-  font-size: clamp(1.9rem, 4vw, 2.6rem);
+  font-size: clamp(1.5rem, 3.5vw, 2.1rem);
 }
 
 .subtitle,
@@ -114,9 +114,9 @@ select option {
   color: var(--primary-soft);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-size: 0.85rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.2rem;
 }
 
 .subtitle {
@@ -139,8 +139,9 @@ select option {
   background: color-mix(in srgb, var(--surface) 75%, white 5%);
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 0.6rem 0.9rem;
+  padding: 0.4rem 0.8rem;
   color: var(--text);
+  font-size: 0.85rem;
   font-weight: 700;
 }
 
@@ -149,7 +150,7 @@ select option {
 .tab {
   border: 1px solid transparent;
   border-radius: 14px;
-  padding: 0.85rem 1rem;
+  padding: 0.65rem 0.9rem;
   transition: 0.2s ease;
 }
 
@@ -177,19 +178,30 @@ select option {
 }
 
 .tabs {
-  display: inline-flex;
-  gap: 8px;
+  display: flex;
+  gap: 6px;
   background: color-mix(in srgb, var(--surface) 35%, transparent);
   border: 1px solid var(--border);
   border-radius: 18px;
-  padding: 8px;
+  padding: 6px;
   margin-bottom: 18px;
-  flex-wrap: wrap;
+  /* Una sola fila siempre — scroll horizontal si hace falta */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;        /* Firefox */
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;                /* Chrome / Safari */
 }
 
 .tab {
   background: transparent;
   color: var(--text-muted);
+  white-space: nowrap;          /* Evita que el texto de cada tab se parta */
+  flex-shrink: 0;
+  font-size: 0.88rem;
 }
 
 .tab.active {
@@ -211,8 +223,8 @@ select option {
     color-mix(in srgb, var(--surface) 85%, transparent)
   );
   border: 1px solid var(--border);
-  border-radius: 24px;
-  padding: 18px;
+  border-radius: 20px;
+  padding: 16px;
   box-shadow: var(--shadow);
   width: 100%;
   overflow: hidden;
@@ -227,12 +239,13 @@ select option {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .panel h2 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .manual-user-row {
@@ -321,7 +334,8 @@ select option {
 label span {
   display: block;
   color: var(--text-muted);
-  margin-bottom: 0.35rem;
+  font-size: 0.82rem;
+  margin-bottom: 0.2rem;
 }
 
 .list-stack {
@@ -347,7 +361,7 @@ label span {
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .full-span {

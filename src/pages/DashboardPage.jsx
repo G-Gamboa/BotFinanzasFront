@@ -5,19 +5,6 @@ import GastosChart from '../components/GastosCharts'
 import LoadingBlock from '../components/LoadingBlock'
 import EmptyState from '../components/EmptyState'
 
-// ── TC helpers ──────────────────────────────────────────────────────────────
-function getNextMonthDay(dayOfMonth) {
-  if (!dayOfMonth) return null
-  const today = new Date()
-  const thisMonth = new Date(today.getFullYear(), today.getMonth(), dayOfMonth)
-  if (today <= thisMonth) return thisMonth
-  return new Date(today.getFullYear(), today.getMonth() + 1, dayOfMonth)
-}
-
-function fmtDate(d) {
-  if (!d) return '—'
-  return d.toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric' })
-}
 
 export default function DashboardPage({ userId, api, loading, palette, dashboard, showAmounts, tcBalances = [] }) {
   const [period, setPeriod] = useState('mes')
@@ -74,29 +61,21 @@ export default function DashboardPage({ userId, api, loading, palette, dashboard
 
   return (
     <div style={{ display: 'grid', gap: '1rem' }}>
-      {/* ── Top stats ── */}
-      <div
-        className="stats-grid"
-        style={{
-          display: 'grid',
-          gap: '1rem',
-          gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))',
-        }}
-      >
+      {/* ── Top stats: siempre 4 tarjetas ── */}
+      <div className="stats-grid">
         <StatCard palette={palette} title="Networth" value={money(networthQ, showAmounts)} />
-        <StatCard palette={palette} title="Neto" value={money(netoQ, showAmounts)} accent />
+        <StatCard
+          palette={palette}
+          title={compromisoVisacuotas > 0 ? 'Neto ajustado' : 'Neto'}
+          value={money(compromisoVisacuotas > 0 ? netoAjustadoQ : netoQ, showAmounts)}
+          accent
+        />
         <StatCard
           palette={palette}
           title="Ahorro"
           value={money(dashboard?.networth?.ahorro_total_gtq ?? 0, showAmounts)}
         />
         <StatCard palette={palette} title="Pasivos" value={money(totalDeudas, showAmounts)} accent />
-        {compromisoVisacuotas > 0 && (
-          <StatCard palette={palette} title="Compromiso Visacuotas" value={money(compromisoVisacuotas, showAmounts)} accent />
-        )}
-        {compromisoVisacuotas > 0 && (
-          <StatCard palette={palette} title="Neto ajustado" value={money(netoAjustadoQ, showAmounts)} />
-        )}
       </div>
 
       <div
@@ -194,72 +173,42 @@ export default function DashboardPage({ userId, api, loading, palette, dashboard
 
           {tcBalances.length > 0 && (
             <SectionCard palette={palette} title="Tarjetas de crédito">
-              <div style={{ display: 'grid', gap: '1rem' }}>
+              <div style={{ display: 'grid', gap: '0.5rem' }}>
                 {tcBalances.map((tc) => {
+                  const isUSD = tc.tc_type === 'USD'
+                  const balanceNativo = isUSD ? tc.balance_usd_portion ?? tc.balance : tc.balance_gtq ?? tc.balance
                   const limit = tc.credit_limit
-                  const balance = tc.balance
-                  const available = limit != null ? limit - balance : null
-                  const usedPct = limit != null && limit > 0 ? Math.min(100, (balance / limit) * 100) : null
-                  const closeDate = getNextMonthDay(tc.billing_close_day)
-                  const payDate = closeDate && tc.payment_due_day
-                    ? new Date(closeDate.getFullYear(), closeDate.getMonth() + 1, tc.payment_due_day)
+                  const avail = limit != null ? Math.max(0, limit - (tc.balance_gtq ?? tc.balance)) : null
+                  const usedPct = limit != null && limit > 0
+                    ? Math.min(100, ((tc.balance_gtq ?? tc.balance) / limit) * 100)
                     : null
-
-                  const dangerColor = '#e53935'
-                  const warnColor = '#fb8c00'
-                  const okColor = palette.primary
-
-                  const barColor = usedPct == null ? okColor
-                    : usedPct >= 85 ? dangerColor
-                    : usedPct >= 60 ? warnColor
-                    : okColor
+                  const barColor = usedPct == null ? palette.primary
+                    : usedPct >= 85 ? '#e53935'
+                    : usedPct >= 60 ? '#fb8c00'
+                    : palette.primary
 
                   return (
-                    <div key={tc.id} style={{ display: 'grid', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                        <span style={{ color: palette.text, fontWeight: 700 }}>💳 {tc.name}</span>
-                        {limit != null && (
-                          <span style={{ fontSize: '0.75rem', color: palette.textSoft }}>
-                            Límite: {showAmounts ? `Q ${Number(limit).toLocaleString('es-GT', { minimumFractionDigits: 2 })}` : 'Q ••••'}
-                          </span>
-                        )}
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.83rem' }}>
-                        <span style={{ color: palette.textSoft }}>
-                          Saldo: <strong style={{ color: balance > 0 ? dangerColor : palette.text }}>
-                            {showAmounts ? `Q ${Number(balance).toLocaleString('es-GT', { minimumFractionDigits: 2 })}` : 'Q ••••'}
-                          </strong>
+                    <div key={tc.id} style={{ display: 'grid', gap: '0.35rem', padding: '0.6rem 0.8rem', borderRadius: '0.8rem', background: palette.cardSoft, border: `1px solid ${palette.borderSoft || palette.border}` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>💳 {tc.name}</span>
+                        <span style={{ fontSize: '0.78rem', color: '#e53935', fontWeight: 700 }}>
+                          {showAmounts
+                            ? isUSD
+                              ? `$${Number(balanceNativo).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                              : `Q ${Number(tc.balance_gtq ?? tc.balance).toLocaleString('es-GT', { minimumFractionDigits: 2 })}`
+                            : '••••'}
                         </span>
-                        {available != null && (
-                          <span style={{ color: palette.textSoft }}>
-                            Disponible: <strong style={{ color: available > 0 ? okColor : dangerColor }}>
-                              {showAmounts ? `Q ${Number(available).toLocaleString('es-GT', { minimumFractionDigits: 2 })}` : 'Q ••••'}
-                            </strong>
-                          </span>
-                        )}
                       </div>
-
-                      {usedPct != null && (
-                        <div style={{ height: 8, borderRadius: 999, background: palette.surface || palette.card, overflow: 'hidden' }}>
-                          <div style={{
-                            width: `${usedPct}%`,
-                            height: '100%',
-                            background: barColor,
-                            borderRadius: 999,
-                            transition: 'width 0.4s ease',
-                          }} />
+                      {avail != null && (
+                        <div style={{ fontSize: '0.75rem', color: palette.textSoft }}>
+                          Disp: <strong style={{ color: avail > 0 ? palette.primary : '#e53935' }}>
+                            {showAmounts ? `Q ${Number(avail).toLocaleString('es-GT', { minimumFractionDigits: 2 })}` : '••••'}
+                          </strong>
                         </div>
                       )}
-
-                      {(tc.billing_close_day || tc.payment_due_day) && (
-                        <div style={{ display: 'flex', gap: '1rem', fontSize: '0.78rem', color: palette.textSoft }}>
-                          {tc.billing_close_day && (
-                            <span>✂️ Corte: <strong>{fmtDate(closeDate)}</strong></span>
-                          )}
-                          {tc.payment_due_day && payDate && (
-                            <span>📅 Pago: <strong>{fmtDate(payDate)}</strong></span>
-                          )}
+                      {usedPct != null && (
+                        <div style={{ height: 5, borderRadius: 999, background: palette.surface || palette.card, overflow: 'hidden' }}>
+                          <div style={{ width: `${usedPct}%`, height: '100%', background: barColor, borderRadius: 999, transition: 'width 0.4s ease' }} />
                         </div>
                       )}
                     </div>

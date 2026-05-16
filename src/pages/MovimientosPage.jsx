@@ -578,9 +578,9 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                       </label>
 
                       {form.sourceAccountName ? (
-                        <div className="full-span helper-text">
-                          Disponible: Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
-                        </div>
+                        <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -6 }}>
+                          Disp. Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
+                        </small>
                       ) : null}
 
                       {savingsGoals.length > 0 ? (
@@ -661,14 +661,14 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                   {form.movDirection === 'INVERTIR' && (
                     <>
                       <label>
-                        <span>Cuenta origen (sale)</span>
+                        <span>Cuenta origen</span>
                         <select value={form.sourceAccountName} onChange={(e) => updateField('sourceAccountName', e.target.value)}>
                           {liquidAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
                         </select>
                       </label>
 
                       <label>
-                        <span>Cuenta inversión (entra)</span>
+                        <span>Cuenta inversión</span>
                         <select value={form.targetAccountName} onChange={(e) => updateField('targetAccountName', e.target.value)}>
                           {investmentAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
                         </select>
@@ -685,14 +685,14 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                   {form.movDirection === 'RETIRAR_INV' && (
   <>
     <label>
-      <span>Cuenta inversión (sale)</span>
+      <span>Inversión (sale)</span>
       <select value={form.sourceAccountName} onChange={(e) => updateField('sourceAccountName', e.target.value)}>
         {investmentAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
       </select>
     </label>
 
     <label>
-      <span>Cuenta destino (entra)</span>
+      <span>Cuenta destino</span>
       <select value={form.targetAccountName} onChange={(e) => updateField('targetAccountName', e.target.value)}>
         {liquidAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
       </select>
@@ -709,14 +709,14 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                   {form.movDirection === 'MOVER_INV' && (
   <>
     <label>
-      <span>Cuenta inversión origen (sale)</span>
+      <span>Inv. origen</span>
       <select value={form.sourceAccountName} onChange={(e) => updateField('sourceAccountName', e.target.value)}>
         {investmentAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
       </select>
     </label>
 
     <label>
-      <span>Cuenta inversión destino (entra)</span>
+      <span>Inv. destino</span>
       <select value={form.targetAccountName} onChange={(e) => updateField('targetAccountName', e.target.value)}>
         {investmentAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
       </select>
