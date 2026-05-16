@@ -21,7 +21,7 @@ export default function NavTabs({
   // Insertar "Tarjetas" antes de Deudas (solo si el usuario tiene TC)
   if (showTarjetas) {
     const deudasIdx = tabs.findIndex((t) => t.key === 'deudas')
-    tabs.splice(deudasIdx, 0, { key: 'tarjetas', label: '💳 TC' })
+    tabs.splice(deudasIdx, 0, { key: 'tarjetas', label: 'TC' })
   }
 
   return (
