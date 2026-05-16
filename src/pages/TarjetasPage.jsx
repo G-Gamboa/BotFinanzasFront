@@ -274,8 +274,8 @@ export default function TarjetasPage({
             const nativeBalance = isUSD ? (tc.balance_usd_portion ?? tc.balance) : tc.balance_gtq
             const nativeLimit   = tc.credit_limit ?? null
 
-            // Visacuotas barra
-            const vcBalance = tc.visacuota_balance ?? 0
+            // Visacuotas barra — usar restante de planes activos (cuotas futuras)
+            const vcBalance = tc.visacuota_remaining ?? tc.visacuota_balance ?? 0
             const vcLimit   = tc.visacuotas_limit  ?? null
 
             return (
@@ -342,10 +342,10 @@ export default function TarjetasPage({
                     <ProgressBar
                       value={vcBalance}
                       max={vcLimit}
-                      label="Visacuotas / Límite VC"
+                      label="Restante visacuotas / Límite VC"
                       sublabel={vcLimit
                         ? `${isUSD ? usd(vcBalance) : q(vcBalance)} / ${isUSD ? usd(vcLimit) : q(vcLimit)}`
-                        : `VC: ${isUSD ? usd(vcBalance) : q(vcBalance)}`}
+                        : `Restante: ${isUSD ? usd(vcBalance) : q(vcBalance)}`}
                     />
                   )}
                 </div>
