@@ -473,55 +473,51 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
 
                   {/* TC MIXTO: opción de cargo en USD */}
                   {isMixtoTC && form.movementType === 'EGR' && (
-                    <>
-                      <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <input
-                          type="checkbox"
-                          checked={form.tcChargeInUsd}
-                          onChange={(e) => updateField('tcChargeInUsd', e.target.checked)}
-                          style={{ width: 'auto', margin: 0 }}
-                        />
-                        <span>Cargo en USD (convertir a Q)</span>
-                      </label>
-
+                    <label className="full-span" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={form.tcChargeInUsd}
+                        onChange={(e) => updateField('tcChargeInUsd', e.target.checked)}
+                        style={{ width: 'auto', margin: 0 }}
+                      />
+                      <span>Cargo en USD</span>
                       {form.tcChargeInUsd && (
-                        <>
-                          <label>
-                            <span>Monto en USD $</span>
-                            <input
-                              type="number"
-                              min="0.01"
-                              step="0.01"
-                              placeholder="Ej. 50.00"
-                              value={form.amountForeign}
-                              onChange={(e) => {
-                                const usdVal = e.target.value
-                                updateField('amountForeign', usdVal)
-                                // Auto-calcular equivalente en Q
-                                const rate = selectedCC?.tc_exchange_rate || 8.0
-                                if (usdVal && !Number.isNaN(Number(usdVal))) {
-                                  updateField('amount', (Number(usdVal) * rate).toFixed(2))
-                                }
-                              }}
-                              required
-                            />
-                          </label>
-                          <div className="full-span helper-text">
-                            Tipo de cambio: Q{(selectedCC?.tc_exchange_rate || 8.0).toFixed(2)} por dólar.
-                            El campo "Monto" se calcula automáticamente en Q.
-                          </div>
-                        </>
+                        <small style={{ opacity: 0.65 }}>
+                          TC ref: Q{(selectedCC?.tc_exchange_rate || 8.0).toFixed(2)}/$
+                        </small>
                       )}
-                    </>
+                    </label>
+                  )}
+
+                  {/* Campo USD (solo visible cuando MIXTO + USD) */}
+                  {isMixtoTC && form.tcChargeInUsd && form.movementType === 'EGR' && (
+                    <label>
+                      <span>Monto en USD $</span>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        placeholder="Ej. 50.00"
+                        value={form.amountForeign}
+                        onChange={(e) => {
+                          const usdVal = e.target.value
+                          updateField('amountForeign', usdVal)
+                          const rate = selectedCC?.tc_exchange_rate || 8.0
+                          if (usdVal && !Number.isNaN(Number(usdVal))) {
+                            updateField('amount', (Number(usdVal) * rate).toFixed(2))
+                          }
+                        }}
+                        required
+                      />
+                    </label>
                   )}
                 </>
               )}
 
               {form.movementType === 'EGR' && form.paymentMethod !== 'credit_card' ? (
-                <div className="full-span helper-text">
-                  Disponible: Q{' '}
-                  {getSaldoDisponible(form.paymentMethod === 'transfer' ? form.accountName : 'Efectivo').toFixed(2)}
-                </div>
+                <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -8 }}>
+                  Disp. Q {getSaldoDisponible(form.paymentMethod === 'transfer' ? form.accountName : 'Efectivo').toFixed(2)}
+                </small>
               ) : null}
             </>
           )}
@@ -555,9 +551,9 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                   </label>
 
                   {form.sourceAccountName ? (
-                    <div className="full-span helper-text">
-                      Disponible: Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
-                    </div>
+                    <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -8 }}>
+                      Disp. Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
+                    </small>
                   ) : null}
                 </>
               )}
@@ -619,9 +615,9 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                       </label>
 
                       {form.targetAccountName ? (
-                        <div className="full-span helper-text">
-                          Disponible total: Q {getAhorroDisponible(form.targetAccountName).toFixed(2)}
-                        </div>
+                        <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -8 }}>
+                          Disp. Q {getAhorroDisponible(form.targetAccountName).toFixed(2)}
+                        </small>
                       ) : null}
 
                       {goalsWithBalance.length > 0 ? (
@@ -642,9 +638,9 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                       ) : null}
 
                       {form.savingsGoalId ? (
-                        <div className="full-span helper-text">
-                          Disponible en meta: Q {getGoalDisponible(form.savingsGoalId).toFixed(2)}
-                        </div>
+                        <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -8 }}>
+                          Disp. meta Q {getGoalDisponible(form.savingsGoalId).toFixed(2)}
+                        </small>
                       ) : null}
                     </>
                   )}
@@ -679,9 +675,9 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                       </label>
 
                       {form.sourceAccountName ? (
-                        <div className="full-span helper-text">
-                          Disponible en {form.sourceAccountName}: Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
-                        </div>
+                        <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -8 }}>
+                          Disp. Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
+                        </small>
                       ) : null}
                     </>
                   )}
@@ -703,9 +699,9 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
     </label>
 
     {form.sourceAccountName ? (
-      <div className="full-span helper-text">
-        Disponible en {form.sourceAccountName}: $ {getInvestmentDisponible(form.sourceAccountName).toFixed(2)}
-      </div>
+      <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -8 }}>
+        Disp. $ {getInvestmentDisponible(form.sourceAccountName).toFixed(2)}
+      </small>
     ) : null}
   </>
 )}
@@ -727,9 +723,9 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
     </label>
 
     {form.sourceAccountName ? (
-      <div className="full-span helper-text">
-        Disponible en {form.sourceAccountName}: $ {getInvestmentDisponible(form.sourceAccountName).toFixed(2)}
-      </div>
+      <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -8 }}>
+        Disp. $ {getInvestmentDisponible(form.sourceAccountName).toFixed(2)}
+      </small>
     ) : null}
   </>
 )}
@@ -787,9 +783,9 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                       </label>
 
                       {form.sourceAccountName ? (
-                        <div className="full-span helper-text">
-                          Disponible en {form.sourceAccountName}: Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
-                        </div>
+                        <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -8 }}>
+                          Disp. Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
+                        </small>
                       ) : null}
                     </>
                   ) : (
@@ -802,9 +798,9 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                       </label>
 
                       {form.loanPersonName ? (
-                        <div className="full-span helper-text">
-                          Disponible para cobrar a {form.loanPersonName}: Q {getPrestamoDisponible(form.loanPersonName).toFixed(2)}
-                        </div>
+                        <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -8 }}>
+                          Cobrable Q {getPrestamoDisponible(form.loanPersonName).toFixed(2)}
+                        </small>
                       ) : null}
                     </>
                   )}
@@ -813,7 +809,8 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
             </>
           )}
 
-          {form.movSubtype !== 'INVERSION' && (
+          {/* El campo monto se oculta cuando la TC MIXTO usa cargo en USD (se autocompleta) */}
+          {form.movSubtype !== 'INVERSION' && !(isMixtoTC && form.tcChargeInUsd) && (
             <label>
               <span>Monto</span>
               <input

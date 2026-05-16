@@ -18,6 +18,7 @@ import { useTelegramMiniApp } from './hooks/useTelegramMiniApp'
 import { getPaletteByKey } from './theme'
 import { applyTheme } from './theme/applyTheme'
 import HistorialPage from './pages/HistorialPage'
+import TarjetasPage from './pages/TarjetasPage'
 
 function normalizeUserLabel(user) {
   if (!user) return ''
@@ -82,6 +83,7 @@ export default function App() {
 
   const userLabel = tgUserId ? normalizeUserLabel(user) : `Prueba manual · ${manualUserId}`
   const canUsePrestamos = Boolean(catalogos?.user?.can_use_loans)
+  const canUseTarjetas  = (tcBalances?.items?.length ?? 0) > 0
 
   useEffect(() => {
     applyTheme(palette)
@@ -309,7 +311,12 @@ export default function App() {
         />
       ) : (
         <>
-          <NavTabs current={activeTab} onChange={setActiveTab} showPrestamos={canUsePrestamos} />
+          <NavTabs
+            current={activeTab}
+            onChange={setActiveTab}
+            showPrestamos={canUsePrestamos}
+            showTarjetas={canUseTarjetas}
+          />
 
           {activeTab === 'movimientos' && (
             <MovimientosPage
@@ -323,15 +330,24 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'tarjetas' && canUseTarjetas && (
+            <TarjetasPage
+              userId={userId}
+              api={api}
+              tcBalances={tcBalances?.items || []}
+              installmentPlans={installmentPlans?.items || []}
+              catalogos={catalogos}
+              disponibles={disponibles}
+              onRefreshData={() => loadAllData({ invalidateFinancial: true })}
+            />
+          )}
+
           {activeTab === 'deudas' && (
             <DeudasPage
               userId={userId}
               api={api}
-              catalogos={catalogos}
               disponibles={disponibles}
               deudas={deudas}
-              tcBalances={tcBalances?.items || []}
-              installmentPlans={installmentPlans?.items || []}
               onRefreshData={() => loadAllData({ invalidateFinancial: true })}
             />
           )}

@@ -1,20 +1,28 @@
 const baseTabs = [
   { key: 'movimientos', label: 'Movimientos' },
-  { key: 'historial', label: 'Historial' },
-  { key: 'deudas', label: 'Deudas' },
-  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'historial',   label: 'Historial' },
+  { key: 'deudas',      label: 'Deudas' },
+  { key: 'dashboard',   label: 'Dashboard' },
 ]
 
-export default function NavTabs({ current, onChange, showPrestamos = false }) {
-  const tabs = showPrestamos
-    ? [
-        baseTabs[0],
-        { key: 'prestamos', label: 'Préstamos' },
-        baseTabs[1],
-        baseTabs[2],
-        baseTabs[3],
-      ]
-    : baseTabs
+export default function NavTabs({
+  current,
+  onChange,
+  showPrestamos = false,
+  showTarjetas  = false,
+}) {
+  const tabs = [...baseTabs]
+
+  // Insertar "Préstamos" después de Movimientos
+  if (showPrestamos) {
+    tabs.splice(1, 0, { key: 'prestamos', label: 'Préstamos' })
+  }
+
+  // Insertar "Tarjetas" antes de Deudas (solo si el usuario tiene TC)
+  if (showTarjetas) {
+    const deudasIdx = tabs.findIndex((t) => t.key === 'deudas')
+    tabs.splice(deudasIdx, 0, { key: 'tarjetas', label: '💳 TC' })
+  }
 
   return (
     <nav className="tabs">

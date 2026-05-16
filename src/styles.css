@@ -611,6 +611,55 @@ label span {
   color: var(--text-muted);
 }
 
+/* ── TarjetasPage ─────────────────────────────────────────────────────────── */
+
+.tc-card {
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 14px 16px;
+}
+
+.tc-type-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  color: var(--primary-soft);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.stat-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+}
+
+.stat-chip span {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+/* Mobile: one column para grid-page two-col */
+@media (max-width: 600px) {
+  .grid-page.two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .segmented-tab.active {
   background: var(--surface);
   color: var(--text);
