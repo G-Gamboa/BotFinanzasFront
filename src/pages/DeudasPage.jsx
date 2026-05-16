@@ -4,11 +4,26 @@ import EmptyState from '../components/EmptyState'
 import MessageBanner from '../components/MessageBanner'
 import { getGuatemalaDateString } from '../utils/dates'
 
+// ── Formatters ──────────────────────────────────────────────────────────────
+
 function q(value) {
   const n = Number(value)
   if (Number.isNaN(n)) return value ?? '—'
   return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(n)
 }
+
+function usd(value) {
+  const n = Number(value)
+  if (Number.isNaN(n)) return value ?? '—'
+  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function formatBalance(tc) {
+  if (tc.tc_type === 'USD') return usd(tc.balance)
+  return q(tc.balance)
+}
+
+// ── Constants ────────────────────────────────────────────────────────────────
 
 const FREQ_LABELS = {
   weekly: 'Semanal',
@@ -38,24 +53,65 @@ const initialPayForm = {
 const initialTCPayForm = {
   creditCardAccountId: '',
   amount: '',
+  amountUsd: '',        // solo para TC USD
   paymentDate: getGuatemalaDateString(),
   accountName: 'Efectivo',
   note: '',
 }
 
-export default function DeudasPage({ userId, api, catalogos, disponibles, deudas, tcBalances = [], onRefreshData }) {
-  const [createForm, setCreateForm] = useState(initialCreateForm)
-  const [payForm, setPayForm] = useState(initialPayForm)
-  const [tcPayForm, setTcPayForm] = useState(initialTCPayForm)
-  const [createSaving, setCreateSaving] = useState(false)
-  const [paySaving, setPaySaving] = useState(false)
-  const [tcPaySaving, setTcPaySaving] = useState(false)
+const initialInstallPlanForm = {
+  creditCardAccountId: '',
+  name: '',
+  totalAmount: '',
+  totalInstallments: '',
+  monthlyAmount: '',
+  purchaseDate: getGuatemalaDateString(),
+  firstChargeDate: getGuatemalaDateString(),
+  note: '',
+}
+
+const initialMigrateForm = {
+  creditCardAccountId: '',
+  migrationType: 'normal',
+  firstChargeDate: getGuatemalaDateString(),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function DeudasPage({
+  userId,
+  api,
+  catalogos,
+  disponibles,
+  deudas,
+  tcBalances = [],
+  installmentPlans = [],
+  onRefreshData,
+}) {
+  const [createForm, setCreateForm]             = useState(initialCreateForm)
+  const [payForm, setPayForm]                   = useState(initialPayForm)
+  const [tcPayForm, setTcPayForm]               = useState(initialTCPayForm)
+  const [installPlanForm, setInstallPlanForm]   = useState(initialInstallPlanForm)
+  const [migrateDebtId, setMigrateDebtId]       = useState(null)   // debt being migrated
+  const [migrateForm, setMigrateForm]           = useState(initialMigrateForm)
+
+  const [createSaving, setCreateSaving]         = useState(false)
+  const [paySaving, setPaySaving]               = useState(false)
+  const [tcPaySaving, setTcPaySaving]           = useState(false)
+  const [installPlanSaving, setInstallPlanSaving] = useState(false)
+  const [migrateSaving, setMigrateSaving]       = useState(false)
+
   const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
+  const [error, setError]     = useState('')
+
+  // ── Derived data ──────────────────────────────────────────────────────────
 
   const deudasRows = useMemo(() => deudas?.items || [], [deudas])
   const activasRows = useMemo(
-    () => deudasRows.filter((item) => String(item.status || '').toLowerCase() === 'active' && Number(item.pending_installments || 0) > 0),
+    () => deudasRows.filter(
+      (d) => String(d.status || '').toLowerCase() === 'active' &&
+             Number(d.pending_installments || 0) > 0
+    ),
     [deudasRows],
   )
 
@@ -71,6 +127,21 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
 
   const hasTCCards = tcBalances.length > 0
 
+  // TC currently selected in payment form
+  const selectedTC = useMemo(
+    () => tcBalances.find((tc) => String(tc.id) === String(tcPayForm.creditCardAccountId)),
+    [tcBalances, tcPayForm.creditCardAccountId],
+  )
+  const isUsdTC = selectedTC?.tc_type === 'USD'
+
+  // Credit cards available in catalogos
+  const ccCatalog = useMemo(
+    () => catalogos?.accounts?.credit_cards || [],
+    [catalogos],
+  )
+
+  // ── Form update helpers ───────────────────────────────────────────────────
+
   function updateCreate(field, value) {
     setCreateForm((prev) => ({ ...prev, [field]: value }))
   }
@@ -85,12 +156,51 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
     })
   }
 
+  function updateTCPay(field, value) {
+    setTcPayForm((prev) => {
+      const next = { ...prev, [field]: value }
+      // Reset USD amount when TC changes
+      if (field === 'creditCardAccountId') next.amountUsd = ''
+      return next
+    })
+  }
+
+  function updateInstallPlan(field, value) {
+    setInstallPlanForm((prev) => {
+      const next = { ...prev, [field]: value }
+      // Auto-calculate monthly amount when total/installments change
+      if (field === 'totalAmount' || field === 'totalInstallments') {
+        const total = Number(field === 'totalAmount' ? value : next.totalAmount)
+        const count = Number(field === 'totalInstallments' ? value : next.totalInstallments)
+        if (total > 0 && count > 0) {
+          next.monthlyAmount = (total / count).toFixed(2)
+        }
+      }
+      return next
+    })
+  }
+
+  function updateMigrate(field, value) {
+    setMigrateForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  // ── Submissions ───────────────────────────────────────────────────────────
+
+  function notify(msg) {
+    setMessage(msg)
+    setError('')
+  }
+
+  function notifyError(err) {
+    setError(err.message || String(err))
+    setMessage('')
+  }
+
   async function submitCreate(e) {
     e.preventDefault()
     setCreateSaving(true)
     setMessage('')
     setError('')
-
     try {
       await api.postDeuda({
         telegram_user_id: Number(userId),
@@ -102,47 +212,13 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
         paid_installments: Number(createForm.paidInstallments || 0),
         payment_frequency: createForm.paymentFrequency,
       })
-
-      setMessage('Deuda creada correctamente.')
-      setCreateForm({
-        ...initialCreateForm,
-        dueDate: getGuatemalaDateString(),
-      })
+      notify('Deuda creada correctamente.')
+      setCreateForm({ ...initialCreateForm, dueDate: getGuatemalaDateString() })
       onRefreshData?.()
     } catch (err) {
-      setError(err.message || 'No pude crear la deuda.')
+      notifyError(err)
     } finally {
       setCreateSaving(false)
-    }
-  }
-
-  function updateTCPay(field, value) {
-    setTcPayForm((prev) => ({ ...prev, [field]: value }))
-  }
-
-  async function submitTCPay(e) {
-    e.preventDefault()
-    setTcPaySaving(true)
-    setMessage('')
-    setError('')
-
-    try {
-      await api.postTCPayment({
-        telegram_user_id: Number(userId),
-        credit_card_account_id: Number(tcPayForm.creditCardAccountId),
-        amount: Number(tcPayForm.amount),
-        payment_date: tcPayForm.paymentDate,
-        account_name: tcPayForm.accountName,
-        note: tcPayForm.note || null,
-      })
-
-      setMessage('Abono a tarjeta registrado correctamente.')
-      setTcPayForm({ ...initialTCPayForm, paymentDate: getGuatemalaDateString() })
-      onRefreshData?.()
-    } catch (err) {
-      setError(err.message || 'No pude registrar el abono.')
-    } finally {
-      setTcPaySaving(false)
     }
   }
 
@@ -151,7 +227,6 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
     setPaySaving(true)
     setMessage('')
     setError('')
-
     try {
       await api.postPagarDeuda({
         telegram_user_id: Number(userId),
@@ -161,27 +236,118 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
         account_name: payForm.paymentMethod === 'transfer' ? payForm.accountName : 'Efectivo',
         note: payForm.note || null,
       })
-
-      setMessage('Pago registrado correctamente.')
-      setPayForm({
-        ...initialPayForm,
-        paymentDate: getGuatemalaDateString(),
-        debtId: '',
-        accountName: 'Efectivo',
-      })
+      notify('Pago registrado correctamente.')
+      setPayForm({ ...initialPayForm, paymentDate: getGuatemalaDateString(), debtId: '', accountName: 'Efectivo' })
       onRefreshData?.()
     } catch (err) {
-      setError(err.message || 'No pude registrar el pago.')
+      notifyError(err)
     } finally {
       setPaySaving(false)
     }
   }
 
+  async function submitTCPay(e) {
+    e.preventDefault()
+    setTcPaySaving(true)
+    setMessage('')
+    setError('')
+    try {
+      const payload = {
+        telegram_user_id: Number(userId),
+        credit_card_account_id: Number(tcPayForm.creditCardAccountId),
+        amount: Number(tcPayForm.amount),
+        payment_date: tcPayForm.paymentDate,
+        account_name: tcPayForm.accountName,
+        note: tcPayForm.note || null,
+      }
+      // Para TC USD: incluir monto en dólares pagados
+      if (isUsdTC && tcPayForm.amountUsd) {
+        payload.amount_usd = Number(tcPayForm.amountUsd)
+      }
+      await api.postTCPayment(payload)
+      notify('Abono a tarjeta registrado correctamente.')
+      setTcPayForm({ ...initialTCPayForm, paymentDate: getGuatemalaDateString() })
+      onRefreshData?.()
+    } catch (err) {
+      notifyError(err)
+    } finally {
+      setTcPaySaving(false)
+    }
+  }
+
+  async function submitInstallPlan(e) {
+    e.preventDefault()
+    setInstallPlanSaving(true)
+    setMessage('')
+    setError('')
+    try {
+      await api.postInstallmentPlan({
+        telegram_user_id: Number(userId),
+        credit_card_account_id: Number(installPlanForm.creditCardAccountId),
+        name: installPlanForm.name,
+        total_amount: Number(installPlanForm.totalAmount),
+        total_installments: Number(installPlanForm.totalInstallments),
+        monthly_amount: Number(installPlanForm.monthlyAmount),
+        purchase_date: installPlanForm.purchaseDate,
+        first_charge_date: installPlanForm.firstChargeDate,
+        note: installPlanForm.note || null,
+      })
+      notify('Plan de cuotas creado correctamente.')
+      setInstallPlanForm({ ...initialInstallPlanForm, purchaseDate: getGuatemalaDateString(), firstChargeDate: getGuatemalaDateString() })
+      onRefreshData?.()
+    } catch (err) {
+      notifyError(err)
+    } finally {
+      setInstallPlanSaving(false)
+    }
+  }
+
+  async function deletePlan(planId) {
+    if (!window.confirm('¿Cancelar este plan de cuotas?')) return
+    setMessage('')
+    setError('')
+    try {
+      await api.deleteInstallmentPlan(planId)
+      notify('Plan cancelado correctamente.')
+      onRefreshData?.()
+    } catch (err) {
+      notifyError(err)
+    }
+  }
+
+  async function submitMigrate(e) {
+    e.preventDefault()
+    setMigrateSaving(true)
+    setMessage('')
+    setError('')
+    try {
+      const payload = {
+        telegram_user_id: Number(userId),
+        debt_id: Number(migrateDebtId),
+        credit_card_account_id: Number(migrateForm.creditCardAccountId),
+        migration_type: migrateForm.migrationType,
+        first_charge_date: migrateForm.migrationType === 'visacuota' ? migrateForm.firstChargeDate : null,
+      }
+      const result = await api.migrateDebtToTC(migrateDebtId, payload)
+      notify(result.message || 'Deuda migrada correctamente.')
+      setMigrateDebtId(null)
+      setMigrateForm(initialMigrateForm)
+      onRefreshData?.()
+    } catch (err) {
+      notifyError(err)
+    } finally {
+      setMigrateSaving(false)
+    }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <div className="grid-page two-col">
       {message ? <MessageBanner kind="success">{message}</MessageBanner> : null}
-      {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
+      {error   ? <MessageBanner kind="error">{error}</MessageBanner>   : null}
 
+      {/* ── Nueva deuda ── */}
       <Panel title="Nueva deuda">
         <form className="form-grid" onSubmit={submitCreate}>
           <label>
@@ -200,7 +366,7 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
           </label>
 
           <label>
-            <span>Frecuencia de pago</span>
+            <span>Frecuencia</span>
             <select value={createForm.paymentFrequency} onChange={(e) => updateCreate('paymentFrequency', e.target.value)}>
               <option value="monthly">Mensual</option>
               <option value="biweekly">Quincenal</option>
@@ -232,6 +398,7 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
         </form>
       </Panel>
 
+      {/* ── Pagar cuota ── */}
       <Panel title="Pagar cuota">
         {activasRows.length > 0 ? (
           <form className="form-grid" onSubmit={submitPay}>
@@ -265,9 +432,7 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
                 <span>Cuenta</span>
                 <select value={payForm.accountName} onChange={(e) => updatePay('accountName', e.target.value)} required>
                   {transferAccounts.map((item) => (
-                    <option key={item.cuenta} value={item.cuenta}>
-                      {item.cuenta} · Disponible {q(item.saldo)}
-                    </option>
+                    <option key={item.cuenta} value={item.cuenta}>{item.cuenta} · {q(item.saldo)}</option>
                   ))}
                 </select>
               </label>
@@ -284,9 +449,12 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
               </button>
             </div>
           </form>
-        ) : <EmptyState text="No hay deudas activas para pagar." />}
+        ) : (
+          <EmptyState text="No hay deudas activas para pagar." />
+        )}
       </Panel>
 
+      {/* ── Deudas activas ── */}
       <Panel title="Deudas activas">
         {activasRows.length > 0 ? (
           <div className="list-stack">
@@ -301,21 +469,100 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
                   <span>Pendientes: {deuda.pending_installments}</span>
                   <span>
                     {deuda.payment_frequency !== 'none'
-                      ? `Próximo pago: ${deuda.due_date}`
-                      : `Pago: ${deuda.due_date}`}
+                      ? `Próximo: ${deuda.due_date}`
+                      : `Fecha: ${deuda.due_date}`}
                   </span>
                   <span>{FREQ_LABELS[deuda.payment_frequency] ?? deuda.payment_frequency}</span>
                 </div>
+
+                {/* Botones de migración */}
+                {hasTCCards && (
+                  <div className="debt-migrate-actions" style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+                    <button
+                      className="ghost-btn small"
+                      type="button"
+                      onClick={() => {
+                        setMigrateDebtId(deuda.id)
+                        setMigrateForm({ ...initialMigrateForm, migrationType: 'normal', creditCardAccountId: String(tcBalances[0]?.id || '') })
+                      }}
+                    >
+                      → TC cargo único
+                    </button>
+                    <button
+                      className="ghost-btn small"
+                      type="button"
+                      onClick={() => {
+                        setMigrateDebtId(deuda.id)
+                        setMigrateForm({ ...initialMigrateForm, migrationType: 'visacuota', creditCardAccountId: String(tcBalances[0]?.id || '') })
+                      }}
+                    >
+                      → TC Visacuotas
+                    </button>
+                  </div>
+                )}
+
+                {/* Formulario de migración inline */}
+                {migrateDebtId === deuda.id && (
+                  <form className="form-grid migrate-form" onSubmit={submitMigrate} style={{ marginTop: 10 }}>
+                    <label>
+                      <span>Tarjeta destino</span>
+                      <select
+                        value={migrateForm.creditCardAccountId}
+                        onChange={(e) => updateMigrate('creditCardAccountId', e.target.value)}
+                        required
+                      >
+                        <option value="">Selecciona TC</option>
+                        {tcBalances.map((tc) => (
+                          <option key={tc.id} value={tc.id}>{tc.name}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    {migrateForm.migrationType === 'normal' && (
+                      <div className="full-span helper-text">
+                        Se creará un cargo único de {q(deuda.saldo_pendiente)} en la TC seleccionada.
+                      </div>
+                    )}
+
+                    {migrateForm.migrationType === 'visacuota' && (
+                      <label>
+                        <span>Primer corte</span>
+                        <input
+                          type="date"
+                          value={migrateForm.firstChargeDate}
+                          onChange={(e) => updateMigrate('firstChargeDate', e.target.value)}
+                          required
+                        />
+                      </label>
+                    )}
+
+                    <div className="full-span form-actions" style={{ gap: 8 }}>
+                      <button className="primary-btn small" type="submit" disabled={migrateSaving || !migrateForm.creditCardAccountId}>
+                        {migrateSaving ? 'Migrando...' : 'Confirmar migración'}
+                      </button>
+                      <button
+                        className="ghost-btn small"
+                        type="button"
+                        onClick={() => setMigrateDebtId(null)}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
             ))}
           </div>
-        ) : <EmptyState text="No hay deudas activas." />}
+        ) : (
+          <EmptyState text="No hay deudas activas." />
+        )}
       </Panel>
 
+      {/* ── Detalle de deudas ── */}
       <Panel title="Detalle de deudas" className="full-span">
-        {activasRows.length > 0 ? (
+        {deudasRows.length > 0 ? (
           <div className="list-stack">
-            {activasRows.map((deuda) => {
+            {deudasRows.map((deuda) => {
               const isPaid = deuda.status === 'paid'
               return (
                 <div className="debt-card debt-detail" key={`detail-${deuda.id}`} style={{ opacity: isPaid ? 0.6 : 1 }}>
@@ -338,7 +585,9 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
               )
             })}
           </div>
-        ) : <EmptyState text="No hay deudas activas." />}
+        ) : (
+          <EmptyState text="No hay deudas registradas." />
+        )}
       </Panel>
 
       {/* ── Tarjetas de Crédito ── */}
@@ -350,18 +599,28 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
                 <div className="debt-card" key={tc.id}>
                   <div>
                     <strong>{tc.name}</strong>
-                    <small>Tarjeta de crédito</small>
+                    <small>
+                      {tc.tc_type === 'USD' ? 'TC en dólares' : tc.tc_type === 'MIXTO' ? 'TC Mixta Q/$' : 'TC en quetzales'}
+                    </small>
                   </div>
                   <div className="debt-meta">
                     <span style={{ color: tc.balance > 0 ? 'var(--color-danger, #e53)' : 'inherit' }}>
-                      Saldo pendiente: {q(tc.balance)}
+                      Saldo: {formatBalance(tc)}
+                      {tc.tc_type === 'USD' && ` (≈ ${q(tc.balance_gtq)})`}
                     </span>
+                    {tc.visacuota_balance > 0 && (
+                      <span>Visacuotas: {tc.tc_type === 'USD' ? usd(tc.visacuota_balance) : q(tc.visacuota_balance)}</span>
+                    )}
+                    {tc.credit_limit && (
+                      <span>Límite: {tc.tc_type === 'USD' ? usd(tc.credit_limit) : q(tc.credit_limit)}</span>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           </Panel>
 
+          {/* ── Abonar a tarjeta ── */}
           <Panel title="Abonar a tarjeta">
             <form className="form-grid" onSubmit={submitTCPay}>
               <label>
@@ -374,23 +633,56 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
                   <option value="">Selecciona tarjeta</option>
                   {tcBalances.map((tc) => (
                     <option key={tc.id} value={tc.id}>
-                      {tc.name} · Saldo {q(tc.balance)}
+                      {tc.name} · {formatBalance(tc)}
                     </option>
                   ))}
                 </select>
               </label>
 
-              <label>
-                <span>Monto del abono</span>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={tcPayForm.amount}
-                  onChange={(e) => updateTCPay('amount', e.target.value)}
-                  required
-                />
-              </label>
+              {/* Para TC USD: mostrar monto en $ y monto en Q por separado */}
+              {isUsdTC ? (
+                <>
+                  <label>
+                    <span>Monto pagado (USD $)</span>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      placeholder="Ej. 150.00"
+                      value={tcPayForm.amountUsd}
+                      onChange={(e) => updateTCPay('amountUsd', e.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
+                    <span>Monto debitado (Q)</span>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      placeholder="Quetzales exactos debitados"
+                      value={tcPayForm.amount}
+                      onChange={(e) => updateTCPay('amount', e.target.value)}
+                      required
+                    />
+                  </label>
+                  <div className="full-span helper-text">
+                    Ingresa exactamente los Q debitados de tu cuenta y los $ pagados a la TC.
+                  </div>
+                </>
+              ) : (
+                <label>
+                  <span>Monto del abono (Q)</span>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={tcPayForm.amount}
+                    onChange={(e) => updateTCPay('amount', e.target.value)}
+                    required
+                  />
+                </label>
+              )}
 
               <label>
                 <span>Fecha</span>
@@ -407,7 +699,7 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
                 <select value={tcPayForm.accountName} onChange={(e) => updateTCPay('accountName', e.target.value)}>
                   {liquidAccounts.map((item) => (
                     <option key={item.cuenta} value={item.cuenta}>
-                      {item.cuenta} · Disponible {q(item.saldo)}
+                      {item.cuenta} · {q(item.saldo)}
                     </option>
                   ))}
                 </select>
@@ -426,12 +718,165 @@ export default function DeudasPage({ userId, api, catalogos, disponibles, deudas
                 <button
                   className="primary-btn"
                   type="submit"
-                  disabled={tcPaySaving || !userId || !tcPayForm.creditCardAccountId || !tcPayForm.amount}
+                  disabled={
+                    tcPaySaving || !userId ||
+                    !tcPayForm.creditCardAccountId ||
+                    !tcPayForm.amount ||
+                    (isUsdTC && !tcPayForm.amountUsd)
+                  }
                 >
                   {tcPaySaving ? 'Guardando...' : 'Registrar abono'}
                 </button>
               </div>
             </form>
+          </Panel>
+
+          {/* ── Visacuotas: planes activos ── */}
+          <Panel title="Visacuotas" className="full-span">
+            {installmentPlans.length > 0 ? (
+              <div className="list-stack" style={{ marginBottom: 16 }}>
+                {installmentPlans.map((plan) => (
+                  <div className="debt-card" key={plan.id}>
+                    <div>
+                      <strong>{plan.name}</strong>
+                      <small>
+                        {plan.credit_card_name} ·{' '}
+                        {plan.paid_installments}/{plan.total_installments} cuotas ·{' '}
+                        {plan.status === 'completed' ? '✅ Completado' : plan.status === 'cancelled' ? '❌ Cancelado' : '🔄 Activo'}
+                      </small>
+                    </div>
+                    <div className="debt-meta">
+                      <span>Cuota: {q(plan.monthly_amount)}</span>
+                      <span>Restante: {q(plan.remaining_amount)}</span>
+                      {plan.next_charge_date && (
+                        <span>Próximo cargo: {plan.next_charge_date}</span>
+                      )}
+                    </div>
+                    {plan.status === 'active' && (
+                      <div style={{ marginTop: 8 }}>
+                        <button
+                          className="ghost-btn small"
+                          type="button"
+                          onClick={() => deletePlan(plan.id)}
+                          style={{ color: 'var(--color-danger, #e53)' }}
+                        >
+                          Cancelar plan
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="helper-text" style={{ marginBottom: 16 }}>Sin planes de cuotas registrados.</p>
+            )}
+
+            {/* Formulario crear nuevo plan */}
+            <details>
+              <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: 10 }}>
+                + Nuevo plan de Visacuotas
+              </summary>
+              <form className="form-grid" onSubmit={submitInstallPlan} style={{ marginTop: 10 }}>
+                <label>
+                  <span>Tarjeta</span>
+                  <select
+                    value={installPlanForm.creditCardAccountId}
+                    onChange={(e) => updateInstallPlan('creditCardAccountId', e.target.value)}
+                    required
+                  >
+                    <option value="">Selecciona TC</option>
+                    {ccCatalog.map((tc) => (
+                      <option key={tc.id} value={tc.id}>{tc.name}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  <span>Nombre del plan</span>
+                  <input
+                    value={installPlanForm.name}
+                    onChange={(e) => updateInstallPlan('name', e.target.value)}
+                    placeholder="Ej. Laptop 12c"
+                    required
+                  />
+                </label>
+
+                <label>
+                  <span>Monto total</span>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={installPlanForm.totalAmount}
+                    onChange={(e) => updateInstallPlan('totalAmount', e.target.value)}
+                    required
+                  />
+                </label>
+
+                <label>
+                  <span>Número de cuotas</span>
+                  <input
+                    type="number"
+                    min="2"
+                    step="1"
+                    value={installPlanForm.totalInstallments}
+                    onChange={(e) => updateInstallPlan('totalInstallments', e.target.value)}
+                    required
+                  />
+                </label>
+
+                <label>
+                  <span>Cuota mensual</span>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={installPlanForm.monthlyAmount}
+                    onChange={(e) => updateInstallPlan('monthlyAmount', e.target.value)}
+                    required
+                  />
+                </label>
+
+                <label>
+                  <span>Fecha de compra</span>
+                  <input
+                    type="date"
+                    value={installPlanForm.purchaseDate}
+                    onChange={(e) => updateInstallPlan('purchaseDate', e.target.value)}
+                    required
+                  />
+                </label>
+
+                <label>
+                  <span>Primer corte (fecha del primer cargo)</span>
+                  <input
+                    type="date"
+                    value={installPlanForm.firstChargeDate}
+                    onChange={(e) => updateInstallPlan('firstChargeDate', e.target.value)}
+                    required
+                  />
+                </label>
+
+                <label className="full-span">
+                  <span>Nota</span>
+                  <input
+                    value={installPlanForm.note}
+                    onChange={(e) => updateInstallPlan('note', e.target.value)}
+                    placeholder="Opcional"
+                  />
+                </label>
+
+                <div className="full-span form-actions">
+                  <button
+                    className="primary-btn"
+                    type="submit"
+                    disabled={installPlanSaving || !userId || !installPlanForm.creditCardAccountId}
+                  >
+                    {installPlanSaving ? 'Guardando...' : 'Crear plan'}
+                  </button>
+                </div>
+              </form>
+            </details>
           </Panel>
         </>
       )}

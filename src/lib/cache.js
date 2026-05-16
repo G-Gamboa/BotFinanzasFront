@@ -21,15 +21,16 @@ export const TTL = {
 
 // Nombres de los conjuntos de datos y su TTL correspondiente
 export const CACHE_KEYS = {
-  catalogos:   TTL.config,
-  dashboard:   TTL.balance,
-  disponibles: TTL.balance,
-  deudas:      TTL.debts,
-  tcBalances:  TTL.debts,
-  cuentas:     TTL.config,
-  categorias:  TTL.config,
-  loanPeople:  TTL.config,
-  preferencias: TTL.config,
+  catalogos:        TTL.config,
+  dashboard:        TTL.balance,
+  disponibles:      TTL.balance,
+  deudas:           TTL.debts,
+  tcBalances:       TTL.debts,
+  installmentPlans: TTL.debts,
+  cuentas:          TTL.config,
+  categorias:       TTL.config,
+  loanPeople:       TTL.config,
+  preferencias:     TTL.config,
 }
 
 function storageKey(name, userId) {
@@ -73,7 +74,7 @@ function cacheRemove(name, userId) {
 
 /** Borra las claves que cambian con cada transacción. */
 export function cacheInvalidateFinancial(userId) {
-  ;['dashboard', 'disponibles', 'deudas', 'tcBalances'].forEach((n) =>
+  ;['dashboard', 'disponibles', 'deudas', 'tcBalances', 'installmentPlans'].forEach((n) =>
     cacheRemove(n, userId)
   )
 }

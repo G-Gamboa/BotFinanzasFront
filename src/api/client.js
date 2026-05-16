@@ -148,6 +148,19 @@ export const api = {
   anularTCPayment: (paymentId, payload) =>
     request(`/tc-payments/${paymentId}/anular`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
+  // Planes de cuotas (Visacuotas)
+  getInstallmentPlans: (userId) => request(`/cc-installment-plans/${userId}`),
+  postInstallmentPlan: (payload) =>
+    request('/cc-installment-plans', { method: 'POST', body: JSON.stringify(payload) }),
+  patchInstallmentPlan: (planId, payload) =>
+    request(`/cc-installment-plans/${planId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteInstallmentPlan: (planId) =>
+    request(`/cc-installment-plans/${planId}`, { method: 'DELETE' }),
+  processPendingCharges: (userId) =>
+    request(`/cc-installment-plans/process-pending/${userId}`, { method: 'POST' }),
+  migrateDebtToTC: (debtId, payload) =>
+    request(`/deudas/${debtId}/migrate-to-tc`, { method: 'POST', body: JSON.stringify(payload) }),
+
   getAdminUsuarios: () => request('/admin/usuarios'),
   postCrearUsuario: (payload) =>
     request('/admin/usuarios', { method: 'POST', body: JSON.stringify(payload) }),

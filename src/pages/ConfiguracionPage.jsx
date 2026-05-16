@@ -12,6 +12,9 @@ const initialAccountForm = {
   creditLimit: '',
   billingCloseDay: '',
   paymentDueDay: '',
+  tcType: 'GTQ',
+  tcExchangeRate: '8.00',
+  visacuotasLimit: '',
 }
 
 const initialCategoryForm = {
@@ -131,6 +134,9 @@ export default function ConfiguracionPage({
       creditLimit: selectedAccount.credit_limit != null ? String(selectedAccount.credit_limit) : '',
       billingCloseDay: selectedAccount.billing_close_day != null ? String(selectedAccount.billing_close_day) : '',
       paymentDueDay: selectedAccount.payment_due_day != null ? String(selectedAccount.payment_due_day) : '',
+      tcType: selectedAccount.tc_type || 'GTQ',
+      tcExchangeRate: selectedAccount.tc_exchange_rate != null ? String(selectedAccount.tc_exchange_rate) : '8.00',
+      visacuotasLimit: selectedAccount.visacuotas_limit != null ? String(selectedAccount.visacuotas_limit) : '',
     })
   }, [selectedAccount])
 
@@ -268,8 +274,8 @@ export default function ConfiguracionPage({
     clearMessages()
     try {
       await Promise.all([
-        api.patchCuenta(a.id, { telegram_user_id: Number(userId), name: a.name, account_type: a.account_type, currency: a.currency, sort_order: bOrder, credit_limit: a.credit_limit ?? null, billing_close_day: a.billing_close_day ?? null, payment_due_day: a.payment_due_day ?? null }),
-        api.patchCuenta(b.id, { telegram_user_id: Number(userId), name: b.name, account_type: b.account_type, currency: b.currency, sort_order: aOrder, credit_limit: b.credit_limit ?? null, billing_close_day: b.billing_close_day ?? null, payment_due_day: b.payment_due_day ?? null }),
+        api.patchCuenta(a.id, { telegram_user_id: Number(userId), name: a.name, account_type: a.account_type, currency: a.currency, sort_order: bOrder, credit_limit: a.credit_limit ?? null, billing_close_day: a.billing_close_day ?? null, payment_due_day: a.payment_due_day ?? null, tc_type: a.tc_type ?? null, tc_exchange_rate: a.tc_exchange_rate ?? null, visacuotas_limit: a.visacuotas_limit ?? null }),
+        api.patchCuenta(b.id, { telegram_user_id: Number(userId), name: b.name, account_type: b.account_type, currency: b.currency, sort_order: aOrder, credit_limit: b.credit_limit ?? null, billing_close_day: b.billing_close_day ?? null, payment_due_day: b.payment_due_day ?? null, tc_type: b.tc_type ?? null, tc_exchange_rate: b.tc_exchange_rate ?? null, visacuotas_limit: b.visacuotas_limit ?? null }),
       ])
       onRefreshData?.()
     } catch (err) { setError(err.message || 'No pude reordenar las cuentas.') }
@@ -309,6 +315,9 @@ export default function ConfiguracionPage({
         credit_limit: isTC && accountForm.creditLimit ? Number(accountForm.creditLimit) : null,
         billing_close_day: isTC && accountForm.billingCloseDay ? Number(accountForm.billingCloseDay) : null,
         payment_due_day: isTC && accountForm.paymentDueDay ? Number(accountForm.paymentDueDay) : null,
+        tc_type: isTC ? accountForm.tcType : null,
+        tc_exchange_rate: isTC && accountForm.tcExchangeRate ? Number(accountForm.tcExchangeRate) : null,
+        visacuotas_limit: isTC && accountForm.visacuotasLimit ? Number(accountForm.visacuotasLimit) : null,
       }
 
       if (selectedAccountId) {
@@ -641,6 +650,44 @@ export default function ConfiguracionPage({
                     placeholder="Ej. 5"
                     value={accountForm.paymentDueDay}
                     onChange={(e) => setAccountForm((p) => ({ ...p, paymentDueDay: e.target.value }))}
+                  />
+                </label>
+
+                <label>
+                  <span>Tipo de TC</span>
+                  <select
+                    value={accountForm.tcType}
+                    onChange={(e) => setAccountForm((p) => ({ ...p, tcType: e.target.value }))}
+                  >
+                    <option value="GTQ">GTQ (quetzales)</option>
+                    <option value="USD">USD (dólares)</option>
+                    <option value="MIXTO">MIXTO (Q y $)</option>
+                  </select>
+                </label>
+
+                {(accountForm.tcType === 'USD' || accountForm.tcType === 'MIXTO') && (
+                  <label>
+                    <span>Tipo de cambio (Q por $)</span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="0.0001"
+                      placeholder="Ej. 8.00"
+                      value={accountForm.tcExchangeRate}
+                      onChange={(e) => setAccountForm((p) => ({ ...p, tcExchangeRate: e.target.value }))}
+                    />
+                  </label>
+                )}
+
+                <label>
+                  <span>Límite Visacuotas (opcional)</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    placeholder="Dejar vacío = comparte límite general"
+                    value={accountForm.visacuotasLimit}
+                    onChange={(e) => setAccountForm((p) => ({ ...p, visacuotasLimit: e.target.value }))}
                   />
                 </label>
               </>

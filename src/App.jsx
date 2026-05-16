@@ -70,6 +70,8 @@ export default function App() {
   const [loanPeopleAdmin, setLoanPeopleAdmin] = useState(null)
   const [preferencias, setPreferencias] = useState(null)
   const [tcBalances, setTcBalances] = useState(null)
+  const [installmentPlans, setInstallmentPlans] = useState(null)
+  const [autoChargesNotice, setAutoChargesNotice] = useState('')
 
   const userId = tgUserId || manualUserId
   const canPrivate = Boolean(catalogos?.user?.can_use_private_palettes)
@@ -99,15 +101,16 @@ export default function App() {
       const hasCached = Object.values(cached).some((v) => v !== null)
 
       if (hasCached) {
-        if (cached.catalogos)   setCatalogos(cached.catalogos)
-        if (cached.dashboard)   setDashboard(cached.dashboard)
-        if (cached.disponibles) setDisponibles(cached.disponibles)
-        if (cached.deudas)      setDeudas(cached.deudas)
-        if (cached.cuentas)     setCuentasAdmin(cached.cuentas)
-        if (cached.categorias)  setCategoriasAdmin(cached.categorias)
-        if (cached.loanPeople)  setLoanPeopleAdmin(cached.loanPeople)
-        if (cached.preferencias) setPreferencias(cached.preferencias)
-        if (cached.tcBalances)  setTcBalances(cached.tcBalances)
+        if (cached.catalogos)        setCatalogos(cached.catalogos)
+        if (cached.dashboard)        setDashboard(cached.dashboard)
+        if (cached.disponibles)      setDisponibles(cached.disponibles)
+        if (cached.deudas)           setDeudas(cached.deudas)
+        if (cached.cuentas)          setCuentasAdmin(cached.cuentas)
+        if (cached.categorias)       setCategoriasAdmin(cached.categorias)
+        if (cached.loanPeople)       setLoanPeopleAdmin(cached.loanPeople)
+        if (cached.preferencias)     setPreferencias(cached.preferencias)
+        if (cached.tcBalances)       setTcBalances(cached.tcBalances)
+        if (cached.installmentPlans) setInstallmentPlans(cached.installmentPlans)
       }
 
       // Solo muestra spinner si no hay nada en caché (primera vez)
@@ -128,6 +131,7 @@ export default function App() {
           loanPeopleData,
           preferenciasData,
           tcBalancesData,
+          installmentPlansData,
         ] = await Promise.all([
           api.getHealth(),
           api.getCatalogos(userId),
@@ -139,6 +143,7 @@ export default function App() {
           api.getLoanPeopleAdmin(userId),
           api.getPreferencias(userId),
           api.getTCBalances(userId),
+          api.getInstallmentPlans(userId),
         ])
 
         setHealth(healthData)
@@ -151,19 +156,42 @@ export default function App() {
         setLoanPeopleAdmin(loanPeopleData)
         setPreferencias(preferenciasData)
         setTcBalances(tcBalancesData)
+        setInstallmentPlans(installmentPlansData)
 
         lastFetchRef.current = Date.now()
 
         // ── Paso 3: persistir datos frescos al caché ─────────────────────────
-        cacheSet('catalogos',    userId, catalogosData)
-        cacheSet('dashboard',    userId, dashboardData)
-        cacheSet('disponibles',  userId, disponiblesData)
-        cacheSet('deudas',       userId, deudasData)
-        cacheSet('cuentas',      userId, cuentasData)
-        cacheSet('categorias',   userId, categoriasData)
-        cacheSet('loanPeople',   userId, loanPeopleData)
-        cacheSet('preferencias', userId, preferenciasData)
-        cacheSet('tcBalances',   userId, tcBalancesData)
+        cacheSet('catalogos',        userId, catalogosData)
+        cacheSet('dashboard',        userId, dashboardData)
+        cacheSet('disponibles',      userId, disponiblesData)
+        cacheSet('deudas',           userId, deudasData)
+        cacheSet('cuentas',          userId, cuentasData)
+        cacheSet('categorias',       userId, categoriasData)
+        cacheSet('loanPeople',       userId, loanPeopleData)
+        cacheSet('preferencias',     userId, preferenciasData)
+        cacheSet('tcBalances',       userId, tcBalancesData)
+        cacheSet('installmentPlans', userId, installmentPlansData)
+
+        // ── Paso 4: generar cargos automáticos de visacuotas vencidos ────────
+        try {
+          const pendingResult = await api.processPendingCharges(userId)
+          if (pendingResult?.total_created > 0) {
+            setAutoChargesNotice(
+              `${pendingResult.total_created} cargo(s) de Visacuotas generados automáticamente.`
+            )
+            // Actualizar planes y balances TC tras auto-cargo
+            const [freshPlans, freshTC] = await Promise.all([
+              api.getInstallmentPlans(userId),
+              api.getTCBalances(userId),
+            ])
+            setInstallmentPlans(freshPlans)
+            setTcBalances(freshTC)
+            cacheSet('installmentPlans', userId, freshPlans)
+            cacheSet('tcBalances',       userId, freshTC)
+          }
+        } catch {
+          // Silencioso: el auto-cargo no bloquea la carga principal
+        }
       } catch (err) {
         // Si había caché, el usuario ya tiene datos; no mostrar error en pantalla
         if (!hasCached) setError(err.message || 'No pude cargar la información.')
@@ -258,6 +286,9 @@ export default function App() {
       )}
 
       {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
+      {autoChargesNotice ? (
+        <MessageBanner kind="success">{autoChargesNotice}</MessageBanner>
+      ) : null}
       {!loading && health && health.ok === false ? (
         <MessageBanner kind="error">La API no respondió correctamente.</MessageBanner>
       ) : null}
@@ -299,8 +330,8 @@ export default function App() {
               catalogos={catalogos}
               disponibles={disponibles}
               deudas={deudas}
-              deudasActivas={deudasActivas}
               tcBalances={tcBalances?.items || []}
+              installmentPlans={installmentPlans?.items || []}
               onRefreshData={() => loadAllData({ invalidateFinancial: true })}
             />
           )}

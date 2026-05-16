@@ -14,6 +14,10 @@ const initialForm = {
   accountName: 'Efectivo',
   creditCardAccountId: '',
 
+  // TC MIXTO: cargo en USD
+  tcChargeInUsd: false,
+  amountForeign: '',     // monto original en USD (MIXTO)
+
   movSubtype: 'NORMAL',
   movDirection: 'NORMAL',
   sourceAccountName: '',
@@ -53,6 +57,13 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
     () => catalogos?.accounts?.credit_cards || [],
     [catalogos]
   )
+
+  // TC seleccionada en el formulario (incluye tc_type y tc_exchange_rate)
+  const selectedCC = useMemo(
+    () => creditCards.find((tc) => String(tc.id) === String(form.creditCardAccountId)),
+    [creditCards, form.creditCardAccountId]
+  )
+  const isMixtoTC = selectedCC?.tc_type === 'MIXTO'
 
   const loanPeople = useMemo(
     () => (catalogos?.loan_people || []).map((p) => p.name),
@@ -134,6 +145,14 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
           next.accountName = value === 'transfer' ? (transferAccounts[0] || '') : 'Efectivo'
           next.creditCardAccountId = ''
         }
+        next.tcChargeInUsd = false
+        next.amountForeign = ''
+      }
+
+      // Al cambiar la TC seleccionada, resetear el modo USD
+      if (field === 'creditCardAccountId') {
+        next.tcChargeInUsd = false
+        next.amountForeign = ''
       }
 
       if (field === 'movDirection') {
@@ -297,6 +316,10 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
               : 'Efectivo',
           credit_card_account_id: isTarjeta ? Number(form.creditCardAccountId) : null,
         }
+        // Para TC MIXTO con cargo en USD: incluir el monto en USD original
+        if (isTarjeta && form.tcChargeInUsd && form.amountForeign) {
+          payload.amount_foreign = Number(form.amountForeign)
+        }
       }
 
       if (form.movementType === 'MOV') {
@@ -360,6 +383,8 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
         accountName: 'Efectivo',
         loanPersonName: loanPeople[0] || '',
         savingsGoalId: '',
+        tcChargeInUsd: false,
+        amountForeign: '',
       }))
 
       onRefreshData?.()
@@ -430,18 +455,66 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
               )}
 
               {form.paymentMethod === 'credit_card' && (
-                <label>
-                  <span>Tarjeta</span>
-                  <select
-                    value={form.creditCardAccountId}
-                    onChange={(e) => updateField('creditCardAccountId', e.target.value)}
-                    required
-                  >
-                    {creditCards.map((tc) => (
-                      <option key={tc.id} value={tc.id}>{tc.name}</option>
-                    ))}
-                  </select>
-                </label>
+                <>
+                  <label>
+                    <span>Tarjeta</span>
+                    <select
+                      value={form.creditCardAccountId}
+                      onChange={(e) => updateField('creditCardAccountId', e.target.value)}
+                      required
+                    >
+                      {creditCards.map((tc) => (
+                        <option key={tc.id} value={tc.id}>
+                          {tc.name}{tc.tc_type && tc.tc_type !== 'GTQ' ? ` (${tc.tc_type})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {/* TC MIXTO: opción de cargo en USD */}
+                  {isMixtoTC && form.movementType === 'EGR' && (
+                    <>
+                      <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <input
+                          type="checkbox"
+                          checked={form.tcChargeInUsd}
+                          onChange={(e) => updateField('tcChargeInUsd', e.target.checked)}
+                          style={{ width: 'auto', margin: 0 }}
+                        />
+                        <span>Cargo en USD (convertir a Q)</span>
+                      </label>
+
+                      {form.tcChargeInUsd && (
+                        <>
+                          <label>
+                            <span>Monto en USD $</span>
+                            <input
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              placeholder="Ej. 50.00"
+                              value={form.amountForeign}
+                              onChange={(e) => {
+                                const usdVal = e.target.value
+                                updateField('amountForeign', usdVal)
+                                // Auto-calcular equivalente en Q
+                                const rate = selectedCC?.tc_exchange_rate || 8.0
+                                if (usdVal && !Number.isNaN(Number(usdVal))) {
+                                  updateField('amount', (Number(usdVal) * rate).toFixed(2))
+                                }
+                              }}
+                              required
+                            />
+                          </label>
+                          <div className="full-span helper-text">
+                            Tipo de cambio: Q{(selectedCC?.tc_exchange_rate || 8.0).toFixed(2)} por dólar.
+                            El campo "Monto" se calcula automáticamente en Q.
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )}
+                </>
               )}
 
               {form.movementType === 'EGR' && form.paymentMethod !== 'credit_card' ? (
