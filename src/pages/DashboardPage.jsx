@@ -62,6 +62,8 @@ export default function DashboardPage({ userId, api, loading, palette, dashboard
 
   const networthQ = dashboard?.networth?.total_gtq ?? 0
   const netoQ = dashboard?.neto?.patrimonio_neto ?? 0
+  const netoAjustadoQ = dashboard?.neto?.patrimonio_neto_ajustado ?? netoQ
+  const compromisoVisacuotas = dashboard?.neto?.compromiso_visacuotas ?? 0
   const totalDeudas = dashboard?.neto?.pasivos ?? 0
   const inversionesMap = dashboard?.networth?.inv_map || {}
   const inversionesUsd = dashboard?.networth?.inv_total_usd ?? 0
@@ -89,6 +91,12 @@ export default function DashboardPage({ userId, api, loading, palette, dashboard
           value={money(dashboard?.networth?.ahorro_total_gtq ?? 0, showAmounts)}
         />
         <StatCard palette={palette} title="Pasivos" value={money(totalDeudas, showAmounts)} accent />
+        {compromisoVisacuotas > 0 && (
+          <StatCard palette={palette} title="Compromiso Visacuotas" value={money(compromisoVisacuotas, showAmounts)} accent />
+        )}
+        {compromisoVisacuotas > 0 && (
+          <StatCard palette={palette} title="Neto ajustado" value={money(netoAjustadoQ, showAmounts)} />
+        )}
       </div>
 
       <div
@@ -257,6 +265,36 @@ export default function DashboardPage({ userId, api, loading, palette, dashboard
                     </div>
                   )
                 })}
+              </div>
+            </SectionCard>
+          )}
+
+          {compromisoVisacuotas > 0 && (
+            <SectionCard palette={palette} title="Balance neto" accent>
+              <div style={{ display: 'grid', gap: '0.7rem' }}>
+                <div style={rowBox(palette)}>
+                  <span style={{ color: palette.textSoft, fontWeight: 700 }}>Patrimonio bruto</span>
+                  <span style={{ color: palette.text, fontWeight: 800 }}>{money(dashboard?.neto?.patrimonio_bruto ?? 0, showAmounts)}</span>
+                </div>
+                <div style={rowBox(palette)}>
+                  <span style={{ color: palette.textSoft, fontWeight: 700 }}>Pasivos actuales</span>
+                  <span style={{ color: '#e53935', fontWeight: 800 }}>− {money(totalDeudas, showAmounts)}</span>
+                </div>
+                <div style={rowBox(palette)}>
+                  <span style={{ color: palette.text, fontWeight: 700 }}>Neto estricto</span>
+                  <span style={{ color: palette.primary, fontWeight: 800 }}>{money(netoQ, showAmounts)}</span>
+                </div>
+                <div style={rowBox(palette)}>
+                  <span style={{ color: palette.textSoft, fontWeight: 700 }}>Compromiso Visacuotas</span>
+                  <span style={{ color: '#fb8c00', fontWeight: 800 }}>− {money(compromisoVisacuotas, showAmounts)}</span>
+                </div>
+                <div style={{ ...rowBox(palette), border: `1px solid ${palette.primary}` }}>
+                  <span style={{ color: palette.text, fontWeight: 700 }}>Neto ajustado</span>
+                  <span style={{ color: netoAjustadoQ >= 0 ? palette.primary : '#e53935', fontWeight: 800 }}>{money(netoAjustadoQ, showAmounts)}</span>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: palette.textSoft, lineHeight: 1.4 }}>
+                  El <strong>neto ajustado</strong> descuenta las cuotas de Visacuotas aún no generadas, dando una visión conservadora del patrimonio.
+                </div>
               </div>
             </SectionCard>
           )}

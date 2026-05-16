@@ -70,12 +70,6 @@ const initialInstallPlanForm = {
   note: '',
 }
 
-const initialMigrateForm = {
-  creditCardAccountId: '',
-  migrationType: 'normal',
-  firstChargeDate: getGuatemalaDateString(),
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function DeudasPage({
@@ -92,14 +86,11 @@ export default function DeudasPage({
   const [payForm, setPayForm]                   = useState(initialPayForm)
   const [tcPayForm, setTcPayForm]               = useState(initialTCPayForm)
   const [installPlanForm, setInstallPlanForm]   = useState(initialInstallPlanForm)
-  const [migrateDebtId, setMigrateDebtId]       = useState(null)   // debt being migrated
-  const [migrateForm, setMigrateForm]           = useState(initialMigrateForm)
 
   const [createSaving, setCreateSaving]         = useState(false)
   const [paySaving, setPaySaving]               = useState(false)
   const [tcPaySaving, setTcPaySaving]           = useState(false)
   const [installPlanSaving, setInstallPlanSaving] = useState(false)
-  const [migrateSaving, setMigrateSaving]       = useState(false)
 
   const [message, setMessage] = useState('')
   const [error, setError]     = useState('')
@@ -178,10 +169,6 @@ export default function DeudasPage({
       }
       return next
     })
-  }
-
-  function updateMigrate(field, value) {
-    setMigrateForm((prev) => ({ ...prev, [field]: value }))
   }
 
   // ── Submissions ───────────────────────────────────────────────────────────
@@ -312,31 +299,6 @@ export default function DeudasPage({
       onRefreshData?.()
     } catch (err) {
       notifyError(err)
-    }
-  }
-
-  async function submitMigrate(e) {
-    e.preventDefault()
-    setMigrateSaving(true)
-    setMessage('')
-    setError('')
-    try {
-      const payload = {
-        telegram_user_id: Number(userId),
-        debt_id: Number(migrateDebtId),
-        credit_card_account_id: Number(migrateForm.creditCardAccountId),
-        migration_type: migrateForm.migrationType,
-        first_charge_date: migrateForm.migrationType === 'visacuota' ? migrateForm.firstChargeDate : null,
-      }
-      const result = await api.migrateDebtToTC(migrateDebtId, payload)
-      notify(result.message || 'Deuda migrada correctamente.')
-      setMigrateDebtId(null)
-      setMigrateForm(initialMigrateForm)
-      onRefreshData?.()
-    } catch (err) {
-      notifyError(err)
-    } finally {
-      setMigrateSaving(false)
     }
   }
 
@@ -475,81 +437,6 @@ export default function DeudasPage({
                   <span>{FREQ_LABELS[deuda.payment_frequency] ?? deuda.payment_frequency}</span>
                 </div>
 
-                {/* Botones de migración */}
-                {hasTCCards && (
-                  <div className="debt-migrate-actions" style={{ marginTop: 8, display: 'flex', gap: 6 }}>
-                    <button
-                      className="ghost-btn small"
-                      type="button"
-                      onClick={() => {
-                        setMigrateDebtId(deuda.id)
-                        setMigrateForm({ ...initialMigrateForm, migrationType: 'normal', creditCardAccountId: String(tcBalances[0]?.id || '') })
-                      }}
-                    >
-                      → TC cargo único
-                    </button>
-                    <button
-                      className="ghost-btn small"
-                      type="button"
-                      onClick={() => {
-                        setMigrateDebtId(deuda.id)
-                        setMigrateForm({ ...initialMigrateForm, migrationType: 'visacuota', creditCardAccountId: String(tcBalances[0]?.id || '') })
-                      }}
-                    >
-                      → TC Visacuotas
-                    </button>
-                  </div>
-                )}
-
-                {/* Formulario de migración inline */}
-                {migrateDebtId === deuda.id && (
-                  <form className="form-grid migrate-form" onSubmit={submitMigrate} style={{ marginTop: 10 }}>
-                    <label>
-                      <span>Tarjeta destino</span>
-                      <select
-                        value={migrateForm.creditCardAccountId}
-                        onChange={(e) => updateMigrate('creditCardAccountId', e.target.value)}
-                        required
-                      >
-                        <option value="">Selecciona TC</option>
-                        {tcBalances.map((tc) => (
-                          <option key={tc.id} value={tc.id}>{tc.name}</option>
-                        ))}
-                      </select>
-                    </label>
-
-                    {migrateForm.migrationType === 'normal' && (
-                      <div className="full-span helper-text">
-                        Se creará un cargo único de {q(deuda.saldo_pendiente)} en la TC seleccionada.
-                      </div>
-                    )}
-
-                    {migrateForm.migrationType === 'visacuota' && (
-                      <label>
-                        <span>Primer corte</span>
-                        <input
-                          type="date"
-                          value={migrateForm.firstChargeDate}
-                          onChange={(e) => updateMigrate('firstChargeDate', e.target.value)}
-                          required
-                        />
-                      </label>
-                    )}
-
-                    <div className="full-span form-actions" style={{ gap: 8 }}>
-                      <button className="primary-btn small" type="submit" disabled={migrateSaving || !migrateForm.creditCardAccountId}>
-                        {migrateSaving ? 'Migrando...' : 'Confirmar migración'}
-                      </button>
-                      <button
-                        className="ghost-btn small"
-                        type="button"
-                        onClick={() => setMigrateDebtId(null)}
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </form>
-                )}
               </div>
             ))}
           </div>
@@ -560,19 +447,19 @@ export default function DeudasPage({
 
       {/* ── Detalle de deudas ── */}
       <Panel title="Detalle de deudas" className="full-span">
-        {deudasRows.length > 0 ? (
+        {deudasRows.filter((d) => d.status !== 'paid').length > 0 ? (
           <div className="list-stack">
-            {deudasRows.map((deuda) => {
-              const isPaid = deuda.status === 'paid'
-              return (
-                <div className="debt-card debt-detail" key={`detail-${deuda.id}`} style={{ opacity: isPaid ? 0.6 : 1 }}>
+            {deudasRows
+              .filter((d) => d.status !== 'paid')
+              .map((deuda) => (
+                <div className="debt-card debt-detail" key={`detail-${deuda.id}`}>
                   <div>
                     <strong>{deuda.name}</strong>
                     <small>
                       {deuda.creditor}
                       {' · '}
                       {FREQ_LABELS[deuda.payment_frequency] ?? deuda.payment_frequency}
-                      {isPaid ? ' · ✅ Pagada' : ` · Próximo: ${deuda.due_date}`}
+                      {` · Próximo: ${deuda.due_date}`}
                     </small>
                   </div>
                   <div className="debt-meta">
@@ -582,11 +469,10 @@ export default function DeudasPage({
                     <span>Saldo: {q(deuda.saldo_pendiente)}</span>
                   </div>
                 </div>
-              )
-            })}
+              ))}
           </div>
         ) : (
-          <EmptyState text="No hay deudas registradas." />
+          <EmptyState text="No hay deudas pendientes." />
         )}
       </Panel>
 
@@ -634,16 +520,34 @@ export default function DeudasPage({
                   {tcBalances.map((tc) => (
                     <option key={tc.id} value={tc.id}>
                       {tc.name} · {formatBalance(tc)}
+                      {tc.tc_type === 'USD' ? ' (USD)' : tc.tc_type === 'MIXTO' ? ' (Mixta Q/$)' : ' (GTQ)'}
                     </option>
                   ))}
                 </select>
               </label>
 
+              {/* Indicador de tipo de TC seleccionada */}
+              {selectedTC && (
+                <div className="full-span helper-text" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span>
+                    {selectedTC.tc_type === 'USD'
+                      ? '💵 Tarjeta en dólares — el saldo se maneja en USD, el débito es en Q'
+                      : selectedTC.tc_type === 'MIXTO'
+                      ? '🔀 Tarjeta mixta Q/$ — el saldo total se lleva en Q'
+                      : '🇬🇹 Tarjeta en quetzales'}
+                  </span>
+                  <strong>Saldo actual: {formatBalance(selectedTC)}</strong>
+                  {selectedTC.tc_type === 'USD' && selectedTC.balance_gtq !== undefined && (
+                    <span>(≈ {q(selectedTC.balance_gtq)})</span>
+                  )}
+                </div>
+              )}
+
               {/* Para TC USD: mostrar monto en $ y monto en Q por separado */}
               {isUsdTC ? (
                 <>
                   <label>
-                    <span>Monto pagado (USD $)</span>
+                    <span>Dólares pagados a la TC ($)</span>
                     <input
                       type="number"
                       min="0.01"
@@ -655,19 +559,19 @@ export default function DeudasPage({
                     />
                   </label>
                   <label>
-                    <span>Monto debitado (Q)</span>
+                    <span>Quetzales debitados de tu cuenta (Q)</span>
                     <input
                       type="number"
                       min="0.01"
                       step="0.01"
-                      placeholder="Quetzales exactos debitados"
+                      placeholder="Q exactos que saldrán de tu cuenta"
                       value={tcPayForm.amount}
                       onChange={(e) => updateTCPay('amount', e.target.value)}
                       required
                     />
                   </label>
                   <div className="full-span helper-text">
-                    Ingresa exactamente los Q debitados de tu cuenta y los $ pagados a la TC.
+                    💡 Los $ reducen el saldo de la TC. Los Q se debitan de tu cuenta líquida.
                   </div>
                 </>
               ) : (
@@ -677,6 +581,7 @@ export default function DeudasPage({
                     type="number"
                     min="0.01"
                     step="0.01"
+                    placeholder="Ej. 500.00"
                     value={tcPayForm.amount}
                     onChange={(e) => updateTCPay('amount', e.target.value)}
                     required
