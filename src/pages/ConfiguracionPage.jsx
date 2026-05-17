@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
 import EmptyState from '../components/EmptyState'
@@ -35,6 +35,15 @@ const initialLoanPersonForm = { name: '' }
 const initialDebtForm = { name: '', creditor: '', due_date: '', installment_amount: '', total_installments: '', payment_frequency: 'monthly' }
 const initialGoalForm = { name: '', target_amount: '', account_name: '' }
 
+const ALL_TAB_LABELS = {
+  movimientos: 'Movimientos',
+  historial:   'Historial',
+  deudas:      'Deudas',
+  dashboard:   'Dashboard',
+  prestamos:   'Préstamos',
+  tarjetas:    'TC',
+}
+
 export default function ConfiguracionPage({
   userId,
   api,
@@ -44,6 +53,7 @@ export default function ConfiguracionPage({
   deudas,
   preferencias,
   canUsePrestamos,
+  canUseTarjetas = false,
   canPrivate,
   isAdmin = false,
   onRefreshData,
@@ -55,6 +65,9 @@ export default function ConfiguracionPage({
   const [debtForm, setDebtForm] = useState(initialDebtForm)
   const [goalForm, setGoalForm] = useState(initialGoalForm)
   const [goals, setGoals] = useState([])
+  const [tabOrder, setTabOrder] = useState(null)
+  // Ref to avoid re-initialising tabOrder on every availableTabs change after first load
+  const tabOrderInitialisedRef = useRef(false)
 
   const [selectedAccountId, setSelectedAccountId] = useState('')
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
@@ -99,6 +112,17 @@ export default function ConfiguracionPage({
     () => getPaletteOptions(Boolean(canPrivate)),
     [canPrivate]
   )
+
+  // Mirror NavTabs logic: build ordered list of available tab keys
+  const availableTabs = useMemo(() => {
+    const tabs = ['movimientos', 'historial', 'deudas', 'dashboard']
+    if (canUsePrestamos) tabs.splice(1, 0, 'prestamos')
+    if (canUseTarjetas) {
+      const deudasIdx = tabs.indexOf('deudas')
+      tabs.splice(deudasIdx, 0, 'tarjetas')
+    }
+    return tabs
+  }, [canUsePrestamos, canUseTarjetas])
 
   const visibleCategories = useMemo(
     () => categoriasItems.filter((item) => item.kind === categoryFilter),
@@ -164,7 +188,23 @@ export default function ConfiguracionPage({
       usdToGtq: String(preferencias.usd_to_gtq ?? '7.7'),
       themeKey: preferencias.theme_key || '',
     })
-  }, [preferencias])
+
+    // Initialise tab order (only once per user load to avoid overwriting local edits)
+    if (!tabOrderInitialisedRef.current) {
+      tabOrderInitialisedRef.current = true
+      const saved = preferencias.tab_order
+      if (saved && saved.length > 0) {
+        // Apply saved order to available tabs, append any new tabs at the end
+        const ordered = saved.filter((k) => availableTabs.includes(k))
+        for (const k of availableTabs) {
+          if (!ordered.includes(k)) ordered.push(k)
+        }
+        setTabOrder(ordered)
+      } else {
+        setTabOrder([...availableTabs])
+      }
+    }
+  }, [preferencias, availableTabs])
 
   useEffect(() => {
     if (!selectedLoanPerson) {
@@ -173,6 +213,12 @@ export default function ConfiguracionPage({
     }
     setLoanPersonForm({ name: selectedLoanPerson.name })
   }, [selectedLoanPerson])
+
+  // Reset tab-order initialisation flag when user switches (dev mode)
+  useEffect(() => {
+    tabOrderInitialisedRef.current = false
+    setTabOrder(null)
+  }, [userId])
 
   // Load savings goals
   useEffect(() => {
@@ -281,6 +327,16 @@ export default function ConfiguracionPage({
     } catch (err) { setError(err.message || 'No pude reordenar las cuentas.') }
   }
 
+  function moveTab(idx, dir) {
+    setTabOrder((prev) => {
+      const arr = [...(prev || availableTabs)]
+      const swapIdx = dir === 'up' ? idx - 1 : idx + 1
+      if (swapIdx < 0 || swapIdx >= arr.length) return prev
+      ;[arr[idx], arr[swapIdx]] = [arr[swapIdx], arr[idx]]
+      return arr
+    })
+  }
+
   function clearMessages() {
     setMessage('')
     setError('')
@@ -379,6 +435,7 @@ export default function ConfiguracionPage({
         default_tab: prefsForm.defaultTab,
         usd_to_gtq: Number(prefsForm.usdToGtq),
         theme_key: prefsForm.themeKey || null,
+        tab_order: tabOrder && tabOrder.length > 0 ? tabOrder : null,
       })
 
       setMessage('Preferencias actualizadas correctamente.')
@@ -1065,6 +1122,48 @@ export default function ConfiguracionPage({
               ))}
             </select>
           </label>
+
+          <div className="full-span">
+            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-soft)', display: 'block', marginBottom: '0.4rem' }}>
+              Orden de pestañas
+            </span>
+            <div style={{ display: 'grid', gap: '0.35rem' }}>
+              {(tabOrder || availableTabs).map((key, idx, arr) => (
+                <div
+                  key={key}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.4rem 0.6rem',
+                    borderRadius: '0.6rem',
+                    background: 'var(--card-soft)',
+                    border: '1px solid var(--border-soft)',
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                    <button
+                      className="ghost-btn"
+                      type="button"
+                      style={{ padding: '0.1rem 0.4rem', fontSize: '0.72rem', lineHeight: 1 }}
+                      onClick={() => moveTab(idx, 'up')}
+                      disabled={idx === 0}
+                    >↑</button>
+                    <button
+                      className="ghost-btn"
+                      type="button"
+                      style={{ padding: '0.1rem 0.4rem', fontSize: '0.72rem', lineHeight: 1 }}
+                      onClick={() => moveTab(idx, 'down')}
+                      disabled={idx === arr.length - 1}
+                    >↓</button>
+                  </div>
+                  <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>
+                    {ALL_TAB_LABELS[key] ?? key}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
 
           <div className="full-span form-actions">
             <button className="primary-btn" type="submit" disabled={savingPrefs}>

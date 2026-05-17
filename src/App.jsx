@@ -305,6 +305,7 @@ export default function App() {
           deudas={deudas}
           preferencias={preferencias}
           canUsePrestamos={canUsePrestamos}
+          canUseTarjetas={canUseTarjetas}
           canPrivate={canPrivate}
           isAdmin={Boolean(catalogos?.user?.is_admin)}
           onRefreshData={() => loadAllData({ invalidateAll: true })}
@@ -316,6 +317,7 @@ export default function App() {
             onChange={setActiveTab}
             showPrestamos={canUsePrestamos}
             showTarjetas={canUseTarjetas}
+            tabOrder={preferencias?.tab_order}
           />
 
           {activeTab === 'movimientos' && (

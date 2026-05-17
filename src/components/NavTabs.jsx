@@ -10,18 +10,31 @@ export default function NavTabs({
   onChange,
   showPrestamos = false,
   showTarjetas  = false,
+  tabOrder      = null,
 }) {
-  const tabs = [...baseTabs]
+  // Construir lista de tabs disponibles
+  let tabs = [...baseTabs]
 
-  // Insertar "Préstamos" después de Movimientos
   if (showPrestamos) {
     tabs.splice(1, 0, { key: 'prestamos', label: 'Préstamos' })
   }
-
-  // Insertar "Tarjetas" antes de Deudas (solo si el usuario tiene TC)
   if (showTarjetas) {
     const deudasIdx = tabs.findIndex((t) => t.key === 'deudas')
     tabs.splice(deudasIdx, 0, { key: 'tarjetas', label: 'TC' })
+  }
+
+  // Aplicar orden personalizado si existe
+  if (tabOrder && tabOrder.length > 0) {
+    const ordered = []
+    for (const key of tabOrder) {
+      const tab = tabs.find((t) => t.key === key)
+      if (tab) ordered.push(tab)
+    }
+    // Tabs disponibles que no estaban en el orden guardado van al final
+    for (const tab of tabs) {
+      if (!ordered.find((t) => t.key === tab.key)) ordered.push(tab)
+    }
+    tabs = ordered
   }
 
   return (
