@@ -1,6 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || ''
 
-function getTelegramInitData() {
+export function getTelegramInitData() {
   try {
     return window?.Telegram?.WebApp?.initData || ''
   } catch {
@@ -160,6 +160,11 @@ export const api = {
     request(`/cc-installment-plans/process-pending/${userId}`, { method: 'POST' }),
   migrateDebtToTC: (debtId, payload) =>
     request(`/deudas/${debtId}/migrate-to-tc`, { method: 'POST', body: JSON.stringify(payload) }),
+
+  // Registration
+  getRegistrationStatus: () => request('/registro/estado'),
+  postRegistroInvoice: () =>
+    request('/registro/invoice', { method: 'POST' }),
 
   getAdminUsuarios: () => request('/admin/usuarios'),
   postCrearUsuario: (payload) =>

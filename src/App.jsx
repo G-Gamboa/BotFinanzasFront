@@ -7,7 +7,7 @@ import MovimientosPage from './pages/MovimientosPage'
 import DeudasPage from './pages/DeudasPage'
 import PrestamosPage from './pages/PrestamosPage'
 import ConfiguracionPage from './pages/ConfiguracionPage'
-import { api } from './api/client'
+import { api, getTelegramInitData } from './api/client'
 import {
   cacheSet,
   cacheReadAll,
@@ -19,6 +19,7 @@ import { getPaletteByKey } from './theme'
 import { applyTheme } from './theme/applyTheme'
 import HistorialPage from './pages/HistorialPage'
 import TarjetasPage from './pages/TarjetasPage'
+import GuestBanner from './components/GuestBanner'
 
 function normalizeUserLabel(user) {
   if (!user) return ''
@@ -56,6 +57,12 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [health, setHealth] = useState(null)
+
+  // Guest / registration state
+  const [isGuest, setIsGuest] = useState(false)
+  const [registerLoading, setRegisterLoading] = useState(false)
+  const [registerError, setRegisterError] = useState('')
+  const [starsPrice, setStarsPrice] = useState(100)
 
   // Evita lanzar dos revalidaciones simultáneas (ej. visibilitychange + mount)
   const fetchingRef = useRef(false)
@@ -113,6 +120,23 @@ export default function App() {
         if (cached.preferencias)     setPreferencias(cached.preferencias)
         if (cached.tcBalances)       setTcBalances(cached.tcBalances)
         if (cached.installmentPlans) setInstallmentPlans(cached.installmentPlans)
+      }
+
+      // ── Paso 0: verificar si el usuario está registrado ───────────────────
+      // Solo aplica en contexto Telegram (hay initData). En dev, se omite.
+      if (getTelegramInitData()) {
+        try {
+          const status = await api.getRegistrationStatus()
+          if (!status.registered) {
+            setIsGuest(true)
+            setLoading(false)
+            fetchingRef.current = false
+            return
+          }
+          setIsGuest(false)
+        } catch {
+          // Si falla (ej. error de red), continuar con el flujo normal
+        }
       }
 
       // Solo muestra spinner si no hay nada en caché (primera vez)
@@ -241,7 +265,41 @@ export default function App() {
 
   useEffect(() => {
     setPrefsApplied(false)
+    setIsGuest(false)
+    setRegisterError('')
   }, [userId])
+
+  async function handleRegister() {
+    setRegisterLoading(true)
+    setRegisterError('')
+    try {
+      const { invoice_link, stars_price } = await api.postRegistroInvoice()
+      setStarsPrice(stars_price)
+
+      const tg = window?.Telegram?.WebApp
+      if (!tg?.openInvoice) {
+        // Fallback: open in browser (should not happen inside Telegram)
+        window.open(invoice_link, '_blank')
+        setRegisterError('Pago abierto en el navegador. Vuelve después de completarlo.')
+        return
+      }
+
+      tg.openInvoice(invoice_link, (status) => {
+        if (status === 'paid') {
+          // Payment confirmed by Telegram — reload data (webhook will have created the user)
+          setTimeout(() => loadAllData({ invalidateAll: true }), 1500)
+        } else if (status === 'cancelled') {
+          setRegisterError('Pago cancelado.')
+        } else if (status === 'failed') {
+          setRegisterError('El pago falló. Intenta de nuevo.')
+        }
+        setRegisterLoading(false)
+      })
+    } catch (err) {
+      setRegisterError(err.message || 'No se pudo iniciar el pago.')
+      setRegisterLoading(false)
+    }
+  }
 
   const deudasActivas = useMemo(() => {
     const items = deudas?.items || []
@@ -295,7 +353,37 @@ export default function App() {
         <MessageBanner kind="error">La API no respondió correctamente.</MessageBanner>
       ) : null}
 
-      {showConfig ? (
+      {/* ── Modo invitado: pantalla de registro ── */}
+      {isGuest ? (
+        <div style={{ padding: '8px 0' }}>
+          <GuestBanner
+            onRegister={handleRegister}
+            loading={registerLoading}
+            starsPrice={starsPrice}
+          />
+          {registerError ? (
+            <MessageBanner kind="error">{registerError}</MessageBanner>
+          ) : null}
+          {/* Vista previa vacía para que el usuario vea la interfaz */}
+          <NavTabs current="movimientos" onChange={() => {}} />
+          <div style={{
+            marginTop: '40px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '10px',
+            color: 'var(--text-soft)',
+            textAlign: 'center',
+            padding: '0 24px',
+          }}>
+            <span style={{ fontSize: '2.5rem' }}>🔒</span>
+            <p style={{ fontWeight: 700, fontSize: '1rem', margin: 0 }}>Acceso restringido</p>
+            <p style={{ fontSize: '0.84rem', margin: 0, maxWidth: '280px', lineHeight: 1.5 }}>
+              Crea tu cuenta para registrar movimientos, ver balances y gestionar tus finanzas.
+            </p>
+          </div>
+        </div>
+      ) : showConfig ? (
         <ConfiguracionPage
           userId={userId}
           api={api}
