@@ -60,6 +60,7 @@ export default function App() {
 
   // Guest / registration state
   const [isGuest, setIsGuest] = useState(false)
+  const [daysRemaining, setDaysRemaining] = useState(null)
   const [registerLoading, setRegisterLoading] = useState(false)
   const [registerError, setRegisterError] = useState('')
   const [starsPrice, setStarsPrice] = useState(100)
@@ -129,11 +130,13 @@ export default function App() {
           const status = await api.getRegistrationStatus()
           if (!status.registered) {
             setIsGuest(true)
+            setDaysRemaining(status.days_remaining ?? null)
             setLoading(false)
             fetchingRef.current = false
             return
           }
           setIsGuest(false)
+          setDaysRemaining(status.days_remaining ?? null)
         } catch {
           // Si falla (ej. error de red), continuar con el flujo normal
         }
@@ -266,6 +269,7 @@ export default function App() {
   useEffect(() => {
     setPrefsApplied(false)
     setIsGuest(false)
+    setDaysRemaining(null)
     setRegisterError('')
   }, [userId])
 
@@ -351,6 +355,22 @@ export default function App() {
       ) : null}
       {!loading && health && health.ok === false ? (
         <MessageBanner kind="error">La API no respondió correctamente.</MessageBanner>
+      ) : null}
+
+      {/* Aviso de suscripción próxima a vencer (≤ 3 días, usuario registrado) */}
+      {!isGuest && daysRemaining !== null && daysRemaining <= 3 ? (
+        <MessageBanner kind="error">
+          {daysRemaining === 0
+            ? 'Tu suscripción vence hoy. '
+            : `Tu suscripción vence en ${daysRemaining} día${daysRemaining !== 1 ? 's' : ''}. `}
+          <button
+            style={{ background: 'none', border: 'none', textDecoration: 'underline', cursor: 'pointer', color: 'inherit', fontSize: 'inherit', padding: 0 }}
+            onClick={handleRegister}
+            disabled={registerLoading}
+          >
+            {registerLoading ? 'Procesando…' : 'Renovar ahora'}
+          </button>
+        </MessageBanner>
       ) : null}
 
       {/* ── Modo invitado: pantalla de registro ── */}

@@ -8,26 +8,25 @@ export default function GuestBanner({ onRegister, loading, starsPrice }) {
         padding: '14px 16px',
         marginBottom: '14px',
         display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        flexWrap: 'wrap',
+        flexDirection: 'column',
+        gap: '10px',
       }}
     >
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div>
         <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '2px' }}>
           Modo prueba
         </div>
         <div style={{ fontSize: '0.78rem', color: 'var(--text-soft)', lineHeight: 1.4 }}>
-          Estás viendo el gestor sin cuenta activa. Regístrate para guardar tus finanzas.
+          Suscripción mensual · {starsPrice ?? 100} Stars/mes. Cancela cuando quieras.
         </div>
       </div>
       <button
         className="primary-btn"
-        style={{ whiteSpace: 'nowrap', fontSize: '0.84rem', padding: '0.45rem 0.9rem' }}
+        style={{ fontSize: '0.84rem', padding: '0.5rem' }}
         onClick={onRegister}
         disabled={loading}
       >
-        {loading ? 'Procesando…' : `Crear cuenta · ⭐ ${starsPrice ?? 100}`}
+        {loading ? 'Procesando…' : `⭐ Suscribirse · ${starsPrice ?? 100} Stars`}
       </button>
     </div>
   )
