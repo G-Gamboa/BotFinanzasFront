@@ -8,6 +8,11 @@ import DeudasPage from './pages/DeudasPage'
 import PrestamosPage from './pages/PrestamosPage'
 import ConfiguracionPage from './pages/ConfiguracionPage'
 import { api, getTelegramInitData } from './api/client'
+import { createDemoApi } from './api/demoClient'
+import {
+  demoCatalogos, demoDashboard, demoDisponibles, demoDeudas,
+  demoHistorial, demoTcBalances, demoPreferencias,
+} from './data/demoData'
 import {
   cacheSet,
   cacheReadAll,
@@ -20,6 +25,16 @@ import { applyTheme } from './theme/applyTheme'
 import HistorialPage from './pages/HistorialPage'
 import TarjetasPage from './pages/TarjetasPage'
 import GuestBanner from './components/GuestBanner'
+
+const demoApi = createDemoApi({
+  catalogos:    demoCatalogos,
+  dashboard:    demoDashboard,
+  disponibles:  demoDisponibles,
+  deudas:       demoDeudas,
+  historial:    demoHistorial,
+  tcBalances:   demoTcBalances,
+  preferencias: demoPreferencias,
+})
 
 function normalizeUserLabel(user) {
   if (!user) return ''
@@ -129,8 +144,19 @@ export default function App() {
         try {
           const status = await api.getRegistrationStatus()
           if (!status.registered) {
+            // Modo demo: carga datos ficticios y muestra toda la app
             setIsGuest(true)
             setDaysRemaining(status.days_remaining ?? null)
+            setCatalogos(demoCatalogos)
+            setDashboard(demoDashboard)
+            setDisponibles(demoDisponibles)
+            setDeudas(demoDeudas)
+            setCuentasAdmin({ items: demoCatalogos.accounts })
+            setCategoriasAdmin({ items: demoCatalogos.categories })
+            setLoanPeopleAdmin({ items: [] })
+            setPreferencias(demoPreferencias)
+            setTcBalances(demoTcBalances)
+            setInstallmentPlans({ items: [] })
             setLoading(false)
             fetchingRef.current = false
             return
@@ -359,23 +385,36 @@ export default function App() {
 
       {/* Aviso de suscripción próxima a vencer (≤ 3 días, usuario registrado) */}
       {!isGuest && daysRemaining !== null && daysRemaining <= 3 ? (
-        <MessageBanner kind="error">
-          {daysRemaining === 0
-            ? 'Tu suscripción vence hoy. '
-            : `Tu suscripción vence en ${daysRemaining} día${daysRemaining !== 1 ? 's' : ''}. `}
+        <div style={{
+          background: 'color-mix(in srgb, var(--color-danger, #e53e3e) 12%, var(--card-soft))',
+          border: '1.5px solid color-mix(in srgb, var(--color-danger, #e53e3e) 35%, transparent)',
+          borderRadius: '16px',
+          padding: '14px 16px',
+          marginBottom: '14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+        }}>
+          <div style={{ fontSize: '0.84rem', lineHeight: 1.4 }}>
+            {daysRemaining === 0
+              ? '⏰ Tu suscripción vence hoy.'
+              : `⏰ Tu suscripción vence en ${daysRemaining} día${daysRemaining !== 1 ? 's' : ''}.`}
+            {' '}Renueva para no perder el acceso.
+          </div>
           <button
-            style={{ background: 'none', border: 'none', textDecoration: 'underline', cursor: 'pointer', color: 'inherit', fontSize: 'inherit', padding: 0 }}
+            className="primary-btn"
+            style={{ fontSize: '0.84rem', padding: '0.5rem' }}
             onClick={handleRegister}
             disabled={registerLoading}
           >
-            {registerLoading ? 'Procesando…' : 'Renovar ahora'}
+            {registerLoading ? 'Procesando…' : '⭐ Renovar suscripción'}
           </button>
-        </MessageBanner>
+        </div>
       ) : null}
 
-      {/* ── Modo invitado: pantalla de registro ── */}
+      {/* Banner de modo demo — visible solo para guests, encima de toda la app */}
       {isGuest ? (
-        <div style={{ padding: '8px 0' }}>
+        <>
           <GuestBanner
             onRegister={handleRegister}
             loading={registerLoading}
@@ -384,26 +423,10 @@ export default function App() {
           {registerError ? (
             <MessageBanner kind="error">{registerError}</MessageBanner>
           ) : null}
-          {/* Vista previa vacía para que el usuario vea la interfaz */}
-          <NavTabs current="movimientos" onChange={() => {}} />
-          <div style={{
-            marginTop: '40px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '10px',
-            color: 'var(--text-soft)',
-            textAlign: 'center',
-            padding: '0 24px',
-          }}>
-            <span style={{ fontSize: '2.5rem' }}>🔒</span>
-            <p style={{ fontWeight: 700, fontSize: '1rem', margin: 0 }}>Acceso restringido</p>
-            <p style={{ fontSize: '0.84rem', margin: 0, maxWidth: '280px', lineHeight: 1.5 }}>
-              Crea tu cuenta para registrar movimientos, ver balances y gestionar tus finanzas.
-            </p>
-          </div>
-        </div>
-      ) : showConfig ? (
+        </>
+      ) : null}
+
+      {showConfig && !isGuest ? (
         <ConfiguracionPage
           userId={userId}
           api={api}
@@ -431,41 +454,41 @@ export default function App() {
           {activeTab === 'movimientos' && (
             <MovimientosPage
               userId={userId}
-              api={api}
+              api={isGuest ? demoApi : api}
               catalogos={catalogos}
               disponibles={disponibles}
               dashboard={dashboard}
               savingsGoals={dashboard?.savings_goals || []}
-              onRefreshData={() => loadAllData({ invalidateFinancial: true })}
+              onRefreshData={isGuest ? () => {} : () => loadAllData({ invalidateFinancial: true })}
             />
           )}
 
           {activeTab === 'tarjetas' && canUseTarjetas && (
             <TarjetasPage
               userId={userId}
-              api={api}
+              api={isGuest ? demoApi : api}
               tcBalances={tcBalances?.items || []}
               installmentPlans={installmentPlans?.items || []}
               catalogos={catalogos}
               disponibles={disponibles}
-              onRefreshData={() => loadAllData({ invalidateFinancial: true })}
+              onRefreshData={isGuest ? () => {} : () => loadAllData({ invalidateFinancial: true })}
             />
           )}
 
           {activeTab === 'deudas' && (
             <DeudasPage
               userId={userId}
-              api={api}
+              api={isGuest ? demoApi : api}
               disponibles={disponibles}
               deudas={deudas}
-              onRefreshData={() => loadAllData({ invalidateFinancial: true })}
+              onRefreshData={isGuest ? () => {} : () => loadAllData({ invalidateFinancial: true })}
             />
           )}
 
           {activeTab === 'dashboard' && (
             <DashboardPage
               userId={userId}
-              api={api}
+              api={isGuest ? demoApi : api}
               loading={loading}
               palette={palette}
               dashboard={dashboard}
@@ -477,22 +500,22 @@ export default function App() {
           {activeTab === 'historial' && (
             <HistorialPage
               userId={userId}
-              api={api}
+              api={isGuest ? demoApi : api}
               categorias={categoriasAdmin}
               catalogos={catalogos}
               disponibles={disponibles}
               tcBalances={tcBalances?.items || []}
-              onRefreshData={() => loadAllData({ invalidateFinancial: true })}
+              onRefreshData={isGuest ? () => {} : () => loadAllData({ invalidateFinancial: true })}
             />
           )}
 
           {activeTab === 'prestamos' && canUsePrestamos && (
             <PrestamosPage
               userId={userId}
-              api={api}
+              api={isGuest ? demoApi : api}
               catalogos={catalogos}
               disponibles={disponibles}
-              onRefreshData={() => loadAllData({ invalidateFinancial: true })}
+              onRefreshData={isGuest ? () => {} : () => loadAllData({ invalidateFinancial: true })}
             />
           )}
         </>
