@@ -89,6 +89,13 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
     [savingsGoals]
   )
 
+  // Saldo de ahorro general = total en cuentas − lo que está en metas
+  const generalSavingsBalance = useMemo(() => {
+    const totalAhorro = ahorroDisponibles.reduce((s, i) => s + Number(i.saldo || 0), 0)
+    const totalGoals  = (savingsGoals || []).reduce((s, g) => s + Number(g.current_amount || 0), 0)
+    return Math.max(0, totalAhorro - totalGoals)
+  }, [ahorroDisponibles, savingsGoals])
+
   const prestamosDisponibles = useMemo(
     () => disponibles?.prestamos_por_persona || [],
     [disponibles]
@@ -162,9 +169,17 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
             next.targetAccountName = ''
           }
           if (value === 'RETIRAR') {
+            const totalAhorro = ahorroDisponibles.reduce((s, i) => s + Number(i.saldo || 0), 0)
+            const totalGoals  = (savingsGoals || []).reduce((s, g) => s + Number(g.current_amount || 0), 0)
+            const genBal = Math.max(0, totalAhorro - totalGoals)
+            const goalsOk = (savingsGoals || []).filter((g) => g.current_amount > 0)
+
             next.sourceAccountName = ''
             next.targetAccountName = ahorroDisponibles[0]?.cuenta || liquidAccounts[0] || ''
-            next.savingsGoalId = ''
+            // Si el general no tiene saldo, pre-seleccionar la primera meta disponible
+            next.savingsGoalId = (genBal <= 0 && goalsOk.length > 0)
+              ? String(goalsOk[0].id)
+              : ''
           }
         }
 
@@ -297,6 +312,27 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
     setError('')
 
     try {
+      // ── Validación de saldo para retiro de ahorro ──────────────────
+      if (
+        form.movementType === 'MOV' &&
+        form.movSubtype === 'AHORRO' &&
+        form.movDirection === 'RETIRAR'
+      ) {
+        if (form.savingsGoalId) {
+          if (getGoalDisponible(form.savingsGoalId) <= 0) {
+            setError('La meta seleccionada no tiene saldo disponible.')
+            setSaving(false)
+            return
+          }
+        } else {
+          if (generalSavingsBalance <= 0) {
+            setError('El ahorro general no tiene saldo disponible para retirar.')
+            setSaving(false)
+            return
+          }
+        }
+      }
+
       let payload = null
 
       if (form.movementType === 'ING' || form.movementType === 'EGR') {
@@ -600,48 +636,61 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                     </>
                   ) : (
                     <>
-                      <label>
-                        <span>Cuenta destino</span>
-                        <select
-                          value={form.targetAccountName}
-                          onChange={(e) => updateField('targetAccountName', e.target.value)}
-                        >
-                          {ahorroDisponibles.map((item) => (
-                            <option key={item.cuenta} value={item.cuenta}>
-                              {item.cuenta}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      {/* Sin ninguna fuente disponible */}
+                      {ahorroDisponibles.length === 0 && goalsWithBalance.length === 0 ? (
+                        <p className="full-span" style={{ opacity: 0.6, fontSize: '0.85rem', margin: '4px 0' }}>
+                          No hay ahorro disponible para retirar.
+                        </p>
+                      ) : (
+                        <>
+                          {ahorroDisponibles.length > 0 && (
+                            <label>
+                              <span>Cuenta de ahorro</span>
+                              <select
+                                value={form.targetAccountName}
+                                onChange={(e) => updateField('targetAccountName', e.target.value)}
+                              >
+                                {ahorroDisponibles.map((item) => (
+                                  <option key={item.cuenta} value={item.cuenta}>
+                                    {item.cuenta}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
 
-                      {form.targetAccountName ? (
-                        <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -8 }}>
-                          Disp. Q {getAhorroDisponible(form.targetAccountName).toFixed(2)}
-                        </small>
-                      ) : null}
+                          {/* "Retirar de": solo muestra opciones con saldo */}
+                          {(generalSavingsBalance > 0 || goalsWithBalance.length > 0) && (
+                            <label>
+                              <span>Retirar de</span>
+                              <select
+                                value={form.savingsGoalId}
+                                onChange={(e) => updateField('savingsGoalId', e.target.value)}
+                              >
+                                {generalSavingsBalance > 0 && (
+                                  <option value="">Ahorro general</option>
+                                )}
+                                {goalsWithBalance.map((g) => (
+                                  <option key={g.id} value={String(g.id)}>
+                                    {g.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
 
-                      {goalsWithBalance.length > 0 ? (
-                        <label>
-                          <span>Retirar de</span>
-                          <select
-                            value={form.savingsGoalId}
-                            onChange={(e) => updateField('savingsGoalId', e.target.value)}
-                          >
-                            <option value="">Ahorro general</option>
-                            {goalsWithBalance.map((g) => (
-                              <option key={g.id} value={String(g.id)}>
-                                {g.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      ) : null}
-
-                      {form.savingsGoalId ? (
-                        <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -8 }}>
-                          Disp. meta Q {getGoalDisponible(form.savingsGoalId).toFixed(2)}
-                        </small>
-                      ) : null}
+                          {/* Saldo disponible de la fuente seleccionada */}
+                          {form.savingsGoalId ? (
+                            <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -8 }}>
+                              Disp. meta Q {getGoalDisponible(form.savingsGoalId).toFixed(2)}
+                            </small>
+                          ) : (
+                            <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -8 }}>
+                              Disp. general Q {generalSavingsBalance.toFixed(2)}
+                            </small>
+                          )}
+                        </>
+                      )}
                     </>
                   )}
                 </>
