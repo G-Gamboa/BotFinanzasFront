@@ -25,6 +25,7 @@ import { applyTheme } from './theme/applyTheme'
 import HistorialPage from './pages/HistorialPage'
 import TarjetasPage from './pages/TarjetasPage'
 import GuestBanner from './components/GuestBanner'
+import BettingPage from './pages/BettingPage'
 
 const demoApi = createDemoApi({
   catalogos:    demoCatalogos,
@@ -72,6 +73,9 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [health, setHealth] = useState(null)
+
+  // Betting tracker (admin-only, reemplaza toda la UI)
+  const [showTracker, setShowTracker] = useState(false)
 
   // Guest / registration state
   const [isGuest, setIsGuest] = useState(false)
@@ -340,6 +344,16 @@ export default function App() {
     )
   }, [deudas])
 
+  // ── Betting Tracker: reemplaza toda la interfaz ─────────────────────────
+  if (showTracker) {
+    return (
+      <BettingPage
+        api={api}
+        onClose={() => setShowTracker(false)}
+      />
+    )
+  }
+
   return (
     <Layout
       title="Gestor Finanzas"
@@ -440,6 +454,7 @@ export default function App() {
           canPrivate={canPrivate}
           isAdmin={Boolean(catalogos?.user?.is_admin)}
           onRefreshData={() => loadAllData({ invalidateAll: true })}
+          onOpenTracker={Boolean(catalogos?.user?.is_admin) ? () => { setShowConfig(false); setShowTracker(true) } : undefined}
         />
       ) : (
         <>

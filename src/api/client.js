@@ -172,6 +172,17 @@ export const api = {
   patchAdminUsuario: (userId, payload) =>
     request(`/admin/usuarios/${userId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
+  // ── Betting Tracker (admin-only) ──────────────────────────────────────────
+  getBets: () => request('/betting'),
+  postBet: (payload) =>
+    request('/betting', { method: 'POST', body: JSON.stringify(payload) }),
+  patchBet: (betId, payload) =>
+    request(`/betting/${betId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteBet: (betId) =>
+    request(`/betting/${betId}`, { method: 'DELETE' }),
+  patchBettingConfig: (payload) =>
+    request('/betting/config/update', { method: 'PATCH', body: JSON.stringify(payload) }),
+
   getHistorial: (userId, params = {}) => {
     const search = new URLSearchParams()
     if (params.date_from) search.set('date_from', params.date_from)
