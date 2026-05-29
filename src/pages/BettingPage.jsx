@@ -66,7 +66,8 @@ export default function BettingPage({ api, onClose }) {
   const [saving,     setSaving]     = useState(false)
   const [editCfg,    setEditCfg]    = useState(false)
   const [cfgForm,    setCfgForm]    = useState({ bank_inicial: '', meta: '' })
-  const [editingBet, setEditingBet] = useState(null)   // bet completa al editar
+  const [editingBet,    setEditingBet]    = useState(null)   // bet completa al editar
+  const [selectedFecha, setSelectedFecha] = useState(null)   // día activo en navegador
 
   useEffect(() => { load() }, [])
 
@@ -163,20 +164,20 @@ export default function BettingPage({ api, onClose }) {
     } catch (e) { setError(e.message) }
   }
 
-  // ── Datos filtrados ────────────────────────────────────────────────────────
-  const visible = filtro === 'todas' ? bets : bets.filter(b => b.estado === filtro)
-
+  // ── Días disponibles (más reciente primero) ────────────────────────────────
   const fechasOrden = useMemo(() => {
     const seen = []
     bets.forEach(b => { if (!seen.includes(b.fecha)) seen.push(b.fecha) })
-    return [...seen].sort(sortFechas)
+    return [...seen].sort(sortFechas).reverse()   // más reciente primero
   }, [bets])
 
-  const porFecha = useMemo(() => {
-    const map = {}
-    visible.forEach(b => { (map[b.fecha] = map[b.fecha] || []).push(b) })
-    return map
-  }, [visible])
+  // Auto-seleccionar el día más reciente al cargar o si el día activo desaparece
+  useEffect(() => {
+    if (fechasOrden.length === 0) return
+    if (!selectedFecha || !fechasOrden.includes(selectedFecha)) {
+      setSelectedFecha(fechasOrden[0])
+    }
+  }, [fechasOrden])
 
   // ── JSX ───────────────────────────────────────────────────────────────────
   return (
@@ -270,9 +271,10 @@ export default function BettingPage({ api, onClose }) {
           <div style={{ padding: 40, textAlign: 'center', color: C.faint, fontSize: 11, letterSpacing: '.15em' }}>CARGANDO...</div>
         ) : tab === 'apuestas' ? (
           <PanelApuestas
-            visible={visible}
-            fechasOrden={fechasOrden.filter(f => porFecha[f])}
-            porFecha={porFecha}
+            bets={bets}
+            fechasOrden={fechasOrden}
+            selectedFecha={selectedFecha}
+            setSelectedFecha={setSelectedFecha}
             filtro={filtro}      setFiltro={setFiltro}
             openId={openId}      setOpenId={setOpenId}
             setEstado={setEstado}
@@ -334,10 +336,41 @@ export default function BettingPage({ api, onClose }) {
 }
 
 // ── Panel Apuestas ────────────────────────────────────────────────────────────
-function PanelApuestas({ visible, fechasOrden, porFecha, filtro, setFiltro, openId, setOpenId, setEstado, onDelete, onEdit, saving, showAdd, setShowAdd, form, setForm, submitAdd }) {
+function PanelApuestas({ bets, fechasOrden, selectedFecha, setSelectedFecha, filtro, setFiltro, openId, setOpenId, setEstado, onDelete, onEdit, saving, showAdd, setShowAdd, form, setForm, submitAdd }) {
+
+  // Índice del día activo dentro de fechasOrden (más reciente = índice 0)
+  const idx = fechasOrden.indexOf(selectedFecha)
+
+  // Todas las apuestas del día (sin filtrar, para el resumen)
+  const diaAll = bets.filter(b => b.fecha === selectedFecha)
+
+  // Apuestas del día filtradas por estado, más reciente primero (por id desc)
+  const diaVisible = diaAll
+    .filter(b => filtro === 'todas' || b.estado === filtro)
+    .slice()
+    .sort((a, b) => b.id - a.id)
+
+  // Resumen del día (sobre todas, no solo las filtradas)
+  const diaCerradas = diaAll.filter(b => b.estado !== 'pendiente' && b.estado !== 'void')
+  const diaGan      = diaCerradas.reduce((a, b) => a + (b.ganancia || 0), 0)
+  const diaW        = diaCerradas.filter(b => b.estado === 'ganada').length
+  const diaL        = diaCerradas.filter(b => b.estado === 'perdida').length
+  const diaP        = diaAll.filter(b => b.estado === 'pendiente').length
+
+  const canOlder  = idx < fechasOrden.length - 1   // ← hay días más antiguos
+  const canNewer  = idx > 0                         // → hay días más recientes
+
+  const navBtn = (disabled, label, onClick) => (
+    <button onClick={onClick} disabled={disabled}
+      style={{ padding: '6px 12px', background: 'transparent', border: `1px solid ${disabled ? '#1A1A1A' : C.b1}`, color: disabled ? '#2A2A2A' : C.muted, borderRadius: 5, cursor: disabled ? 'default' : 'pointer', fontFamily: FONT, fontSize: 13, lineHeight: 1, transition: 'all .15s' }}>
+      {label}
+    </button>
+  )
+
   return (
     <>
-      <div style={{ display: 'flex', gap: 6, margin: '14px 0 16px', overflowX: 'auto', paddingBottom: 2, alignItems: 'center' }}>
+      {/* ── Filtros de estado + botón nueva ─────────────────── */}
+      <div style={{ display: 'flex', gap: 6, margin: '14px 0 10px', overflowX: 'auto', paddingBottom: 2, alignItems: 'center' }}>
         {['todas', 'pendiente', 'ganada', 'perdida'].map(f => (
           <button key={f} onClick={() => setFiltro(f)}
             style={{ padding: '4px 14px', borderRadius: 20, border: `1px solid ${filtro === f ? C.text : '#222'}`, background: filtro === f ? C.text : 'transparent', color: filtro === f ? C.bg : C.muted, fontSize: 9, letterSpacing: '.12em', cursor: 'pointer', fontFamily: FONT, textTransform: 'uppercase', whiteSpace: 'nowrap', transition: 'all .15s', flexShrink: 0 }}>
@@ -354,34 +387,64 @@ function PanelApuestas({ visible, fechasOrden, porFecha, filtro, setFiltro, open
         <AddBetForm form={form} setForm={setForm} onSubmit={submitAdd} saving={saving} onCancel={() => setShowAdd(false)} />
       )}
 
+      {/* Sin apuestas en absoluto */}
       {fechasOrden.length === 0 && !showAdd && (
         <div style={{ padding: '40px 0', textAlign: 'center', color: C.faint, fontSize: 11, letterSpacing: '.15em' }}>SIN APUESTAS</div>
       )}
 
-      {fechasOrden.map(fecha => {
-        const apuestas = porFecha[fecha]
-        if (!apuestas?.length) return null
-        const cerradas = apuestas.filter(b => b.estado !== 'pendiente' && b.estado !== 'void')
-        const ganDia   = cerradas.reduce((a, b) => a + (b.ganancia || 0), 0)
-        return (
-          <div key={fecha} style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ fontSize: 9, color: C.faint, letterSpacing: '.2em' }}>{fmtFecha(fecha).toUpperCase()}</div>
-              {cerradas.length > 0 && (
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: ganDia >= 0 ? C.green : C.red }}>{(ganDia >= 0 ? '+' : '') + fmtQ(ganDia)}</span>
-                  <span style={{ fontSize: 9, color: '#555' }}>{cerradas.filter(b => b.estado === 'ganada').length}W {cerradas.filter(b => b.estado === 'perdida').length}L</span>
-                </div>
-              )}
+      {/* ── Navegador de día ────────────────────────────────── */}
+      {fechasOrden.length > 0 && selectedFecha && (
+        <div style={{ background: C.bg3, border: `1px solid ${C.b2}`, borderRadius: 8, padding: '10px 12px', marginBottom: 14 }}>
+          {/* Fila: ← fecha → */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: diaCerradas.length > 0 || diaP > 0 ? 10 : 0 }}>
+            {navBtn(!canOlder, '←', () => setSelectedFecha(fechasOrden[idx + 1]))}
+
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.text, letterSpacing: '.03em' }}>
+                {fmtFecha(selectedFecha)}
+              </div>
+              <div style={{ fontSize: 8, color: C.faint, letterSpacing: '.15em', marginTop: 2 }}>
+                {idx === 0 ? 'HOY / MÁS RECIENTE' : `día ${fechasOrden.length - idx} de ${fechasOrden.length}`}
+              </div>
             </div>
-            {apuestas.map(bet => (
-              <BetCard key={bet.id} bet={bet} isOpen={openId === bet.id}
-                onToggle={() => setOpenId(openId === bet.id ? null : bet.id)}
-                onSetEstado={setEstado} onDelete={onDelete} onEdit={onEdit} saving={saving} />
-            ))}
+
+            {navBtn(!canNewer, '→', () => setSelectedFecha(fechasOrden[idx - 1]))}
           </div>
-        )
-      })}
+
+          {/* Mini resumen del día */}
+          {(diaCerradas.length > 0 || diaP > 0) && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6 }}>
+              {[
+                { l: 'VERDE',  v: diaW, c: C.green },
+                { l: 'ROJO',   v: diaL, c: C.red   },
+                { l: 'PEND',   v: diaP, c: C.blue  },
+                { l: 'NET',    v: diaCerradas.length
+                    ? (diaGan >= 0 ? '+' : '') + fmtQ(diaGan)
+                    : '—',
+                  c: diaGan >= 0 ? C.green : C.red },
+              ].map(s => (
+                <div key={s.l} style={{ background: '#151515', borderRadius: 5, padding: '5px 7px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 8, color: C.faint, letterSpacing: '.1em', marginBottom: 2 }}>{s.l}</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: s.c }}>{s.v}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Lista de apuestas del día ────────────────────────── */}
+      {diaVisible.length === 0 && fechasOrden.length > 0 && !showAdd && (
+        <div style={{ padding: '24px 0', textAlign: 'center', color: C.faint, fontSize: 10, letterSpacing: '.15em' }}>
+          SIN {filtro !== 'todas' ? filtro.toUpperCase() + 'S ' : ''}APUESTAS ESTE DÍA
+        </div>
+      )}
+
+      {diaVisible.map(bet => (
+        <BetCard key={bet.id} bet={bet} isOpen={openId === bet.id}
+          onToggle={() => setOpenId(openId === bet.id ? null : bet.id)}
+          onSetEstado={setEstado} onDelete={onDelete} onEdit={onEdit} saving={saving} />
+      ))}
     </>
   )
 }
