@@ -1,20 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 
-// ── Paleta y constantes ───────────────────────────────────────────────────────
+// ── Paleta ────────────────────────────────────────────────────────────────────
 const C = {
-  green:  '#1D9E75',
-  red:    '#E24B4A',
-  blue:   '#378ADD',
-  gold:   '#BA7517',
-  bg:     '#080808',
-  bg2:    '#0C0C0C',
-  bg3:    '#0F0F0F',
-  bg4:    '#111111',
-  b1:     '#1C1C1C',
-  b2:     '#1A1A1A',
-  text:   '#DDD9CE',
-  muted:  '#555555',
-  faint:  '#444444',
+  green: '#1D9E75', red:  '#E24B4A', blue: '#378ADD', gold:  '#BA7517',
+  bg:    '#080808', bg2:  '#0C0C0C', bg3:  '#0F0F0F', bg4:   '#111111',
+  b1:    '#1C1C1C', b2:   '#1A1A1A', text: '#DDD9CE', muted: '#555555', faint: '#444444',
 }
 
 const COLORES = {
@@ -28,43 +18,69 @@ const ICONS    = { NBA: '◉', Tenis: '◈', Futbol: '⬡', Béisbol: '◎', Otr
 const DEPORTES = ['NBA', 'Tenis', 'Futbol', 'Béisbol', 'Otro']
 const FONT     = "'DM Mono','Fira Mono','Courier New',monospace"
 
-const INITIAL_FORM = { fecha: '', deporte: 'NBA', partido: '', pick: '', cuota: '', stake: '' }
+// ── Helpers de fecha ──────────────────────────────────────────────────────────
+const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
-const fmtQ = (v) => 'Q' + Math.abs(v).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const fmtSign = (v) => (v >= 0 ? '+' : '') + fmtQ(v).replace('Q', 'Q') // sign + Q prefix
+/** Devuelve hoy como "YYYY-MM-DD" en hora local */
+function todayISO() {
+  const d = new Date()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mm}-${dd}`
+}
+
+/** "2026-05-29" → "29 May" · texto libre ("28 May") → sin cambios */
+function fmtFecha(fecha) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    const [, m, d] = fecha.split('-')
+    return `${parseInt(d, 10)} ${MONTHS[parseInt(m, 10) - 1]}`
+  }
+  return fecha
+}
+
+/** Ordena fechas: ISO primero (lexicográfico correcto), luego texto libre */
+function sortFechas(a, b) {
+  const aISO = /^\d{4}-\d{2}-\d{2}$/.test(a)
+  const bISO = /^\d{4}-\d{2}-\d{2}$/.test(b)
+  if (aISO && bISO) return a.localeCompare(b)
+  if (aISO) return -1
+  if (bISO) return  1
+  return 0
+}
+
+// ── Helpers de formato ────────────────────────────────────────────────────────
+const fmtQ    = (v) => 'Q' + Math.abs(v).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const makeForm = () => ({ fecha: todayISO(), deporte: 'NBA', partido: '', pick: '', cuota: '', stake: '' })
 
 // ── Componente raíz ───────────────────────────────────────────────────────────
 export default function BettingPage({ api, onClose }) {
-  const [bets,    setBets]    = useState([])
-  const [config,  setConfig]  = useState({ bank_inicial: 750, meta: 20000 })
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState('')
-  const [tab,     setTab]     = useState('apuestas')
-  const [filtro,  setFiltro]  = useState('todas')
-  const [openId,  setOpenId]  = useState(null)
-  const [showAdd, setShowAdd] = useState(false)
-  const [form,    setForm]    = useState(INITIAL_FORM)
-  const [saving,  setSaving]  = useState(false)
-  const [editCfg, setEditCfg] = useState(false)
-  const [cfgForm, setCfgForm] = useState({ bank_inicial: '', meta: '' })
+  const [bets,       setBets]       = useState([])
+  const [config,     setConfig]     = useState({ bank_inicial: 750, meta: 20000 })
+  const [loading,    setLoading]    = useState(true)
+  const [error,      setError]      = useState('')
+  const [tab,        setTab]        = useState('apuestas')
+  const [filtro,     setFiltro]     = useState('todas')
+  const [openId,     setOpenId]     = useState(null)
+  const [showAdd,    setShowAdd]    = useState(false)
+  const [form,       setForm]       = useState(makeForm)
+  const [saving,     setSaving]     = useState(false)
+  const [editCfg,    setEditCfg]    = useState(false)
+  const [cfgForm,    setCfgForm]    = useState({ bank_inicial: '', meta: '' })
+  const [editingBet, setEditingBet] = useState(null)   // bet completa al editar
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
     try {
       const data = await api.getBets()
       setBets(data.items || [])
       setConfig(data.config || { bank_inicial: 750, meta: 20000 })
-    } catch (e) {
-      setError(e.message || 'Error cargando apuestas.')
-    } finally {
-      setLoading(false)
-    }
+    } catch (e) { setError(e.message || 'Error cargando apuestas.') }
+    finally     { setLoading(false) }
   }
 
-  // ── Métricas ─────────────────────────────────────────────────────────────
+  // ── Métricas ──────────────────────────────────────────────────────────────
   const metrics = useMemo(() => {
     const cerradas      = bets.filter(b => b.estado !== 'pendiente' && b.estado !== 'void')
     const gananciaTotal = cerradas.reduce((a, b) => a + (b.ganancia || 0), 0)
@@ -75,10 +91,11 @@ export default function BettingPage({ api, onClose }) {
     const perdidas      = cerradas.filter(b => b.estado === 'perdida').length
     const pendientes    = bets.filter(b => b.estado === 'pendiente')
     const enRiesgo      = pendientes.reduce((a, b) => a + b.stake, 0)
+    const libre         = bankActual - enRiesgo
     const falta         = config.meta - config.bank_inicial
     const progreso      = falta > 0 ? Math.max(0, Math.min(100, (gananciaTotal / falta) * 100)) : 100
     const wrate         = cerradas.length ? Math.round(ganadas / cerradas.length * 100) + '%' : '—'
-    return { cerradas, gananciaTotal, bankActual, roi, ganadas, perdidas, pendientes, enRiesgo, progreso, apostado, wrate }
+    return { cerradas, gananciaTotal, bankActual, libre, roi, ganadas, perdidas, pendientes, enRiesgo, progreso, apostado, wrate }
   }, [bets, config])
 
   // ── Acciones ──────────────────────────────────────────────────────────────
@@ -89,7 +106,7 @@ export default function BettingPage({ api, onClose }) {
       setBets(prev => prev.map(b => b.id === id ? updated : b))
       setOpenId(null)
     } catch (e) { setError(e.message) }
-    finally { setSaving(false) }
+    finally     { setSaving(false) }
   }
 
   async function handleDelete(id) {
@@ -102,23 +119,37 @@ export default function BettingPage({ api, onClose }) {
   }
 
   async function submitAdd(e) {
-    e.preventDefault()
-    setSaving(true)
+    e.preventDefault(); setSaving(true)
     try {
       const newBet = await api.postBet({
-        fecha:   form.fecha,
-        deporte: form.deporte,
-        partido: form.partido,
-        pick:    form.pick,
-        cuota:   Number(form.cuota),
-        stake:   Number(form.stake),
-        estado:  'pendiente',
+        fecha: form.fecha, deporte: form.deporte,
+        partido: form.partido, pick: form.pick,
+        cuota: Number(form.cuota), stake: Number(form.stake), estado: 'pendiente',
       })
       setBets(prev => [...prev, newBet])
-      setForm(INITIAL_FORM)
+      setForm(makeForm())
       setShowAdd(false)
     } catch (e) { setError(e.message) }
-    finally { setSaving(false) }
+    finally     { setSaving(false) }
+  }
+
+  async function submitEdit(e) {
+    e.preventDefault(); setSaving(true)
+    try {
+      const updated = await api.patchBet(editingBet.id, {
+        fecha:   editingBet.fecha,
+        deporte: editingBet.deporte,
+        partido: editingBet.partido,
+        pick:    editingBet.pick,
+        cuota:   Number(editingBet.cuota),
+        stake:   Number(editingBet.stake),
+        estado:  editingBet.estado,
+      })
+      setBets(prev => prev.map(b => b.id === updated.id ? updated : b))
+      setEditingBet(null)
+      setOpenId(null)
+    } catch (e) { setError(e.message) }
+    finally     { setSaving(false) }
   }
 
   async function submitConfig(e) {
@@ -128,18 +159,17 @@ export default function BettingPage({ api, onClose }) {
         bank_inicial: Number(cfgForm.bank_inicial),
         meta:         Number(cfgForm.meta),
       })
-      setConfig(updated)
-      setEditCfg(false)
+      setConfig(updated); setEditCfg(false)
     } catch (e) { setError(e.message) }
   }
 
-  // ── Datos filtrados ───────────────────────────────────────────────────────
+  // ── Datos filtrados ────────────────────────────────────────────────────────
   const visible = filtro === 'todas' ? bets : bets.filter(b => b.estado === filtro)
 
   const fechasOrden = useMemo(() => {
     const seen = []
     bets.forEach(b => { if (!seen.includes(b.fecha)) seen.push(b.fecha) })
-    return seen
+    return [...seen].sort(sortFechas)
   }, [bets])
 
   const porFecha = useMemo(() => {
@@ -152,46 +182,48 @@ export default function BettingPage({ api, onClose }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: C.bg, zIndex: 9999, fontFamily: FONT, color: C.text, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
 
-      {/* ── Header sticky ─────────────────────────────────────── */}
+      {/* ── Header sticky ────────────────────────────────────── */}
       <div style={{ background: C.bg2, borderBottom: `1px solid ${C.b1}`, padding: '16px 16px 0', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ maxWidth: 540, margin: '0 auto' }}>
 
-          {/* Bank + close */}
+          {/* Fila principal: disponible/total + close */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+
+            {/* Lado izquierdo: disponible / total */}
             <div>
-              <div style={{ fontSize: 9, letterSpacing: '.25em', color: C.faint, marginBottom: 5 }}>MUNDIAL 2026 BETTING</div>
-              <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>
-                {fmtQ(metrics.bankActual)}
+              <div style={{ fontSize: 9, letterSpacing: '.25em', color: C.faint, marginBottom: 6 }}>DISPONIBLE · TOTAL</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>
+                  {fmtQ(metrics.libre)}
+                </span>
+                <span style={{ fontSize: 15, color: C.muted, fontWeight: 400, letterSpacing: '-.01em' }}>
+                  &nbsp;/&nbsp;{fmtQ(metrics.bankActual)}
+                </span>
               </div>
-              <div style={{ fontSize: 11, marginTop: 3, color: metrics.gananciaTotal >= 0 ? C.green : C.red }}>
+              <div style={{ fontSize: 11, marginTop: 4, color: metrics.gananciaTotal >= 0 ? C.green : C.red }}>
                 {metrics.gananciaTotal >= 0 ? '▲ +' : '▼ '}{fmtQ(metrics.gananciaTotal)} desde {fmtQ(config.bank_inicial)}
               </div>
             </div>
+
+            {/* Lado derecho: meta + salir */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-              <button
-                onClick={onClose}
-                style={{ background: 'transparent', border: `1px solid ${C.b2}`, color: C.muted, fontSize: 10, letterSpacing: '.1em', padding: '5px 12px', borderRadius: 5, cursor: 'pointer', fontFamily: FONT }}
-              >
+              <button onClick={onClose}
+                style={{ background: 'transparent', border: `1px solid ${C.b2}`, color: C.muted, fontSize: 10, letterSpacing: '.1em', padding: '5px 12px', borderRadius: 5, cursor: 'pointer', fontFamily: FONT }}>
                 ✕ SALIR
               </button>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: 9, color: C.faint, letterSpacing: '.15em' }}>
                   META {fmtQ(config.meta)}
-                  <button
-                    onClick={() => { setEditCfg(true); setCfgForm({ bank_inicial: config.bank_inicial, meta: config.meta }) }}
+                  <button onClick={() => { setEditCfg(true); setCfgForm({ bank_inicial: config.bank_inicial, meta: config.meta }) }}
                     style={{ background: 'none', border: 'none', color: C.faint, cursor: 'pointer', fontSize: 10, marginLeft: 5, padding: 0, fontFamily: FONT }}
-                    title="Editar configuración"
-                  >
-                    ✎
-                  </button>
+                    title="Editar configuración">✎</button>
                 </div>
                 <div style={{ fontSize: 11, color: C.gold, marginTop: 2 }}>{metrics.progreso.toFixed(1)}% completado</div>
-                <div style={{ fontSize: 9, color: C.faint, marginTop: 1 }}>libre {fmtQ(metrics.bankActual - metrics.enRiesgo)}</div>
               </div>
             </div>
           </div>
 
-          {/* Progress bar */}
+          {/* Barra de progreso */}
           <div style={{ height: 3, background: '#1A1A1A', borderRadius: 2, marginBottom: 14, overflow: 'hidden' }}>
             <div style={{ height: '100%', borderRadius: 2, background: 'linear-gradient(90deg,#1D9E75,#378ADD)', width: metrics.progreso + '%', transition: 'width .6s ease' }} />
           </div>
@@ -216,8 +248,7 @@ export default function BettingPage({ api, onClose }) {
           <div style={{ display: 'flex', borderBottom: `1px solid ${C.b1}` }}>
             {['apuestas', 'resumen'].map(t => (
               <button key={t} onClick={() => setTab(t)}
-                style={{ padding: '8px 16px', background: 'transparent', border: 'none', borderBottom: tab === t ? `2px solid ${C.text}` : '2px solid transparent', color: tab === t ? C.text : C.faint, fontSize: 10, letterSpacing: '.15em', cursor: 'pointer', fontFamily: FONT, textTransform: 'uppercase', transition: 'all .15s' }}
-              >
+                style={{ padding: '8px 16px', background: 'transparent', border: 'none', borderBottom: tab === t ? `2px solid ${C.text}` : '2px solid transparent', color: tab === t ? C.text : C.faint, fontSize: 10, letterSpacing: '.15em', cursor: 'pointer', fontFamily: FONT, textTransform: 'uppercase', transition: 'all .15s' }}>
                 {t}
               </button>
             ))}
@@ -242,13 +273,14 @@ export default function BettingPage({ api, onClose }) {
             visible={visible}
             fechasOrden={fechasOrden.filter(f => porFecha[f])}
             porFecha={porFecha}
-            filtro={filtro} setFiltro={setFiltro}
-            openId={openId} setOpenId={setOpenId}
+            filtro={filtro}      setFiltro={setFiltro}
+            openId={openId}      setOpenId={setOpenId}
             setEstado={setEstado}
             onDelete={handleDelete}
+            onEdit={(bet) => { setEditingBet({ ...bet }); setOpenId(null) }}
             saving={saving}
-            showAdd={showAdd} setShowAdd={setShowAdd}
-            form={form} setForm={setForm}
+            showAdd={showAdd}    setShowAdd={setShowAdd}
+            form={form}          setForm={setForm}
             submitAdd={submitAdd}
           />
         ) : (
@@ -256,24 +288,29 @@ export default function BettingPage({ api, onClose }) {
         )}
       </div>
 
-      {/* ── Modal config ──────────────────────────────────────── */}
+      {/* ── Modal editar apuesta ────────────────────────────── */}
+      {editingBet && (
+        <BetEditModal
+          bet={editingBet}
+          onChange={setEditingBet}
+          onSubmit={submitEdit}
+          onCancel={() => setEditingBet(null)}
+          saving={saving}
+        />
+      )}
+
+      {/* ── Modal config ────────────────────────────────────── */}
       {editCfg && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: C.bg2, border: `1px solid ${C.b2}`, borderRadius: 10, padding: 22, width: '100%', maxWidth: 320, fontFamily: FONT }}>
             <div style={{ fontSize: 10, letterSpacing: '.2em', color: C.faint, marginBottom: 16 }}>CONFIGURACIÓN</div>
             <form onSubmit={submitConfig}>
-              {[
-                { key: 'bank_inicial', label: 'BANK INICIAL Q' },
-                { key: 'meta',         label: 'META Q'          },
-              ].map(({ key, label }) => (
+              {[{ key: 'bank_inicial', label: 'BANK INICIAL Q' }, { key: 'meta', label: 'META Q' }].map(({ key, label }) => (
                 <label key={key} style={{ display: 'block', marginBottom: 14 }}>
                   <div style={{ fontSize: 9, color: C.faint, letterSpacing: '.1em', marginBottom: 4 }}>{label}</div>
-                  <input
-                    type="number" step="0.01" min="0" required
-                    value={cfgForm[key]}
+                  <input type="number" step="0.01" min="0" required value={cfgForm[key]}
                     onChange={e => setCfgForm(p => ({ ...p, [key]: e.target.value }))}
-                    style={{ width: '100%', background: C.bg4, border: `1px solid ${C.b2}`, color: C.text, padding: '9px 10px', borderRadius: 5, fontFamily: FONT, fontSize: 14, boxSizing: 'border-box' }}
-                  />
+                    style={{ width: '100%', background: C.bg4, border: `1px solid ${C.b2}`, color: C.text, padding: '9px 10px', borderRadius: 5, fontFamily: FONT, fontSize: 14, boxSizing: 'border-box' }} />
                 </label>
               ))}
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
@@ -297,21 +334,18 @@ export default function BettingPage({ api, onClose }) {
 }
 
 // ── Panel Apuestas ────────────────────────────────────────────────────────────
-function PanelApuestas({ visible, fechasOrden, porFecha, filtro, setFiltro, openId, setOpenId, setEstado, onDelete, saving, showAdd, setShowAdd, form, setForm, submitAdd }) {
+function PanelApuestas({ visible, fechasOrden, porFecha, filtro, setFiltro, openId, setOpenId, setEstado, onDelete, onEdit, saving, showAdd, setShowAdd, form, setForm, submitAdd }) {
   return (
     <>
-      {/* Filtros + botón Nueva */}
       <div style={{ display: 'flex', gap: 6, margin: '14px 0 16px', overflowX: 'auto', paddingBottom: 2, alignItems: 'center' }}>
         {['todas', 'pendiente', 'ganada', 'perdida'].map(f => (
           <button key={f} onClick={() => setFiltro(f)}
-            style={{ padding: '4px 14px', borderRadius: 20, border: `1px solid ${filtro === f ? C.text : '#222'}`, background: filtro === f ? C.text : 'transparent', color: filtro === f ? C.bg : C.muted, fontSize: 9, letterSpacing: '.12em', cursor: 'pointer', fontFamily: FONT, textTransform: 'uppercase', whiteSpace: 'nowrap', transition: 'all .15s', flexShrink: 0 }}
-          >
+            style={{ padding: '4px 14px', borderRadius: 20, border: `1px solid ${filtro === f ? C.text : '#222'}`, background: filtro === f ? C.text : 'transparent', color: filtro === f ? C.bg : C.muted, fontSize: 9, letterSpacing: '.12em', cursor: 'pointer', fontFamily: FONT, textTransform: 'uppercase', whiteSpace: 'nowrap', transition: 'all .15s', flexShrink: 0 }}>
             {f}
           </button>
         ))}
         <button onClick={() => setShowAdd(p => !p)}
-          style={{ padding: '4px 14px', borderRadius: 20, border: `1px solid ${showAdd ? C.green : '#222'}`, background: showAdd ? 'rgba(29,158,117,0.12)' : 'transparent', color: showAdd ? C.green : C.muted, fontSize: 9, letterSpacing: '.12em', cursor: 'pointer', fontFamily: FONT, textTransform: 'uppercase', whiteSpace: 'nowrap', transition: 'all .15s', marginLeft: 'auto', flexShrink: 0 }}
-        >
+          style={{ padding: '4px 14px', borderRadius: 20, border: `1px solid ${showAdd ? C.green : '#222'}`, background: showAdd ? 'rgba(29,158,117,0.12)' : 'transparent', color: showAdd ? C.green : C.muted, fontSize: 9, letterSpacing: '.12em', cursor: 'pointer', fontFamily: FONT, textTransform: 'uppercase', whiteSpace: 'nowrap', transition: 'all .15s', marginLeft: 'auto', flexShrink: 0 }}>
           + NUEVA
         </button>
       </div>
@@ -332,7 +366,7 @@ function PanelApuestas({ visible, fechasOrden, porFecha, filtro, setFiltro, open
         return (
           <div key={fecha} style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ fontSize: 9, color: C.faint, letterSpacing: '.2em' }}>{fecha.toUpperCase()}</div>
+              <div style={{ fontSize: 9, color: C.faint, letterSpacing: '.2em' }}>{fmtFecha(fecha).toUpperCase()}</div>
               {cerradas.length > 0 && (
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   <span style={{ fontSize: 11, fontWeight: 600, color: ganDia >= 0 ? C.green : C.red }}>{(ganDia >= 0 ? '+' : '') + fmtQ(ganDia)}</span>
@@ -343,8 +377,7 @@ function PanelApuestas({ visible, fechasOrden, porFecha, filtro, setFiltro, open
             {apuestas.map(bet => (
               <BetCard key={bet.id} bet={bet} isOpen={openId === bet.id}
                 onToggle={() => setOpenId(openId === bet.id ? null : bet.id)}
-                onSetEstado={setEstado} onDelete={onDelete} saving={saving}
-              />
+                onSetEstado={setEstado} onDelete={onDelete} onEdit={onEdit} saving={saving} />
             ))}
           </div>
         )
@@ -354,20 +387,15 @@ function PanelApuestas({ visible, fechasOrden, porFecha, filtro, setFiltro, open
 }
 
 // ── Tarjeta de apuesta ────────────────────────────────────────────────────────
-function BetCard({ bet, isOpen, onToggle, onSetEstado, onDelete, saving }) {
-  const c         = COLORES[bet.estado] || COLORES.pendiente
-  const potencial = bet.estado === 'pendiente' ? (bet.stake * (bet.cuota - 1)).toFixed(0) : null
-  const amountVal = bet.ganancia != null
-    ? (bet.ganancia >= 0 ? '+' : '') + fmtQ(bet.ganancia)
-    : fmtQ(bet.stake)
-  const amountLabel = bet.ganancia != null
-    ? (bet.estado === 'ganada' ? 'ganancia' : bet.estado === 'void' ? 'void' : 'perdida')
-    : 'stake'
+function BetCard({ bet, isOpen, onToggle, onSetEstado, onDelete, onEdit, saving }) {
+  const c           = COLORES[bet.estado] || COLORES.pendiente
+  const potencial   = bet.estado === 'pendiente' ? (bet.stake * (bet.cuota - 1)).toFixed(0) : null
+  const amountVal   = bet.ganancia != null ? (bet.ganancia >= 0 ? '+' : '') + fmtQ(bet.ganancia) : fmtQ(bet.stake)
+  const amountLabel = bet.ganancia != null ? (bet.estado === 'ganada' ? 'ganancia' : bet.estado === 'void' ? 'void' : 'perdida') : 'stake'
 
   return (
     <div onClick={onToggle}
-      style={{ borderRadius: 8, marginBottom: 7, overflow: 'hidden', border: `1px solid ${c.border}28`, borderLeft: `3px solid ${c.border}`, background: c.bg, cursor: 'pointer', transition: 'opacity .15s' }}
-    >
+      style={{ borderRadius: 8, marginBottom: 7, overflow: 'hidden', border: `1px solid ${c.border}28`, borderLeft: `3px solid ${c.border}`, background: c.bg, cursor: 'pointer', transition: 'opacity .15s' }}>
       <div style={{ padding: '11px 13px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -380,12 +408,10 @@ function BetCard({ bet, isOpen, onToggle, onSetEstado, onDelete, saving }) {
               <span style={{ fontSize: 9, color: '#555' }}>@{bet.cuota}</span>
               <span style={{ fontSize: 9, color: '#555' }}>·</span>
               <span style={{ fontSize: 9, color: '#555' }}>{fmtQ(bet.stake)}</span>
-              {potencial && (
-                <>
-                  <span style={{ fontSize: 9, color: '#555' }}>·</span>
-                  <span style={{ fontSize: 9, color: C.gold }}>+Q{potencial} potencial</span>
-                </>
-              )}
+              {potencial && <>
+                <span style={{ fontSize: 9, color: '#555' }}>·</span>
+                <span style={{ fontSize: 9, color: C.gold }}>+Q{potencial} potencial</span>
+              </>}
             </div>
           </div>
           <div style={{ textAlign: 'right', marginLeft: 12, flexShrink: 0 }}>
@@ -397,26 +423,30 @@ function BetCard({ bet, isOpen, onToggle, onSetEstado, onDelete, saving }) {
       </div>
 
       {isOpen && (
-        <div style={{ borderTop: '1px solid #161616', padding: '9px 13px', display: 'flex', gap: 5 }}
-          onClick={e => e.stopPropagation()}
-        >
-          {['ganada', 'perdida', 'pendiente', 'void'].map(est => {
-            const ec = COLORES[est]
-            const active = bet.estado === est
-            return (
-              <button key={est} onClick={() => onSetEstado(bet.id, est)} disabled={saving}
-                style={{ flex: 1, padding: '6px 2px', borderRadius: 5, border: `1px solid ${active ? ec.border : '#222'}`, background: active ? ec.bg : 'transparent', color: active ? ec.text : '#444', fontSize: 8, letterSpacing: '.1em', cursor: 'pointer', fontFamily: FONT, textTransform: 'uppercase', transition: 'all .15s' }}
-              >
-                {ec.label}
-              </button>
-            )
-          })}
-          <button onClick={() => onDelete(bet.id)} disabled={saving}
-            style={{ padding: '6px 10px', borderRadius: 5, border: '1px solid #222', background: 'transparent', color: '#444', fontSize: 11, cursor: 'pointer', fontFamily: FONT, transition: 'all .15s' }}
-            title="Eliminar"
-          >
-            ✕
-          </button>
+        <div style={{ borderTop: '1px solid #161616', padding: '9px 13px' }} onClick={e => e.stopPropagation()}>
+          {/* Botones de estado */}
+          <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
+            {['ganada', 'perdida', 'pendiente', 'void'].map(est => {
+              const ec = COLORES[est]
+              const active = bet.estado === est
+              return (
+                <button key={est} onClick={() => onSetEstado(bet.id, est)} disabled={saving}
+                  style={{ flex: 1, padding: '6px 2px', borderRadius: 5, border: `1px solid ${active ? ec.border : '#222'}`, background: active ? ec.bg : 'transparent', color: active ? ec.text : '#444', fontSize: 8, letterSpacing: '.1em', cursor: 'pointer', fontFamily: FONT, textTransform: 'uppercase', transition: 'all .15s' }}>
+                  {ec.label}
+                </button>
+              )
+            })}
+          </div>
+          {/* Editar + Eliminar */}
+          <div style={{ display: 'flex', gap: 5 }}>
+            <button onClick={() => onEdit(bet)} disabled={saving}
+              style={{ flex: 1, padding: '6px', borderRadius: 5, border: `1px solid ${C.blue}33`, background: 'rgba(55,138,221,0.06)', color: C.blue, fontSize: 8, letterSpacing: '.1em', cursor: 'pointer', fontFamily: FONT, textTransform: 'uppercase' }}>
+              ✎ EDITAR
+            </button>
+            <button onClick={() => onDelete(bet.id)} disabled={saving}
+              style={{ padding: '6px 12px', borderRadius: 5, border: '1px solid #222', background: 'transparent', color: '#555', fontSize: 11, cursor: 'pointer', fontFamily: FONT }}
+              title="Eliminar">✕</button>
+          </div>
         </div>
       )}
     </div>
@@ -428,58 +458,14 @@ function AddBetForm({ form, setForm, onSubmit, saving, onCancel }) {
   const inp = { width: '100%', background: C.bg4, border: `1px solid ${C.b2}`, color: C.text, padding: '8px 10px', borderRadius: 5, fontFamily: FONT, fontSize: 12, boxSizing: 'border-box' }
   const lbl = { fontSize: 8, color: C.faint, letterSpacing: '.1em', marginBottom: 4, display: 'block' }
   const potencial = form.cuota && form.stake && !isNaN(form.cuota) && !isNaN(form.stake)
-    ? (Number(form.stake) * (Number(form.cuota) - 1)).toFixed(2)
-    : null
+    ? (Number(form.stake) * (Number(form.cuota) - 1)).toFixed(2) : null
 
   return (
     <div style={{ background: C.bg2, border: `1px solid ${C.b2}`, borderLeft: `3px solid ${C.blue}`, borderRadius: 8, padding: '14px 13px', marginBottom: 16 }}>
       <div style={{ fontSize: 9, color: C.faint, letterSpacing: '.2em', marginBottom: 12 }}>NUEVA APUESTA</div>
       <form onSubmit={onSubmit}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-          <label>
-            <span style={lbl}>FECHA / EVENTO</span>
-            <input style={inp} type="text" placeholder="29 May" value={form.fecha}
-              onChange={e => setForm(p => ({ ...p, fecha: e.target.value }))} required />
-          </label>
-          <label>
-            <span style={lbl}>DEPORTE</span>
-            <select style={inp} value={form.deporte} onChange={e => setForm(p => ({ ...p, deporte: e.target.value }))}>
-              {DEPORTES.map(d => <option key={d} value={d}>{ICONS[d]} {d}</option>)}
-            </select>
-          </label>
-        </div>
-
-        <label style={{ display: 'block', marginBottom: 10 }}>
-          <span style={lbl}>PARTIDO</span>
-          <input style={inp} type="text" placeholder="PSG vs Arsenal — UCL Final" value={form.partido}
-            onChange={e => setForm(p => ({ ...p, partido: e.target.value }))} required />
-        </label>
-
-        <label style={{ display: 'block', marginBottom: 10 }}>
-          <span style={lbl}>PICK</span>
-          <input style={inp} type="text" placeholder="Saque de banda 0:00–0:59" value={form.pick}
-            onChange={e => setForm(p => ({ ...p, pick: e.target.value }))} required />
-        </label>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: potencial ? 8 : 14 }}>
-          <label>
-            <span style={lbl}>CUOTA</span>
-            <input style={inp} type="number" step="0.01" min="1.01" placeholder="1.95" value={form.cuota}
-              onChange={e => setForm(p => ({ ...p, cuota: e.target.value }))} required />
-          </label>
-          <label>
-            <span style={lbl}>STAKE Q</span>
-            <input style={inp} type="number" step="0.01" min="1" placeholder="100" value={form.stake}
-              onChange={e => setForm(p => ({ ...p, stake: e.target.value }))} required />
-          </label>
-        </div>
-
-        {potencial && (
-          <div style={{ fontSize: 10, color: C.gold, marginBottom: 14, letterSpacing: '.08em' }}>
-            Potencial: +Q{potencial}
-          </div>
-        )}
-
+        <BetFields form={form} setForm={setForm} inp={inp} lbl={lbl} />
+        {potencial && <div style={{ fontSize: 10, color: C.gold, marginBottom: 14, letterSpacing: '.08em' }}>Potencial: +Q{potencial}</div>}
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" onClick={onCancel}
             style={{ flex: 1, padding: '9px', background: 'transparent', border: `1px solid ${C.b2}`, color: C.muted, borderRadius: 5, cursor: 'pointer', fontFamily: FONT, fontSize: 9, letterSpacing: '.1em' }}>
@@ -495,12 +481,106 @@ function AddBetForm({ form, setForm, onSubmit, saving, onCancel }) {
   )
 }
 
+// ── Modal editar apuesta ──────────────────────────────────────────────────────
+function BetEditModal({ bet, onChange, onSubmit, onCancel, saving }) {
+  const inp = { width: '100%', background: C.bg4, border: `1px solid ${C.b2}`, color: C.text, padding: '8px 10px', borderRadius: 5, fontFamily: FONT, fontSize: 12, boxSizing: 'border-box' }
+  const lbl = { fontSize: 8, color: C.faint, letterSpacing: '.1em', marginBottom: 4, display: 'block' }
+  const potencial = bet.cuota && bet.stake && !isNaN(bet.cuota) && !isNaN(bet.stake)
+    ? (Number(bet.stake) * (Number(bet.cuota) - 1)).toFixed(2) : null
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.80)', zIndex: 20, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 0 0' }}>
+      <div style={{ background: C.bg2, border: `1px solid ${C.b2}`, borderTop: `3px solid ${C.gold}`, borderRadius: '14px 14px 0 0', padding: '20px 18px 30px', width: '100%', maxWidth: 540, fontFamily: FONT, maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 10, letterSpacing: '.2em', color: C.gold }}>EDITAR APUESTA</div>
+          <button onClick={onCancel} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 16, padding: 0, fontFamily: FONT }}>✕</button>
+        </div>
+
+        <form onSubmit={onSubmit}>
+          <BetFields form={bet} setForm={onChange} inp={inp} lbl={lbl} />
+
+          {/* Estado dentro del editor */}
+          <label style={{ display: 'block', marginBottom: potencial ? 8 : 14 }}>
+            <span style={lbl}>ESTADO</span>
+            <select style={inp} value={bet.estado} onChange={e => onChange(p => ({ ...p, estado: e.target.value }))}>
+              {['pendiente','ganada','perdida','void'].map(est => (
+                <option key={est} value={est}>{COLORES[est].label}</option>
+              ))}
+            </select>
+          </label>
+
+          {potencial && <div style={{ fontSize: 10, color: C.gold, marginBottom: 14, letterSpacing: '.08em' }}>Potencial: +Q{potencial}</div>}
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={onCancel}
+              style={{ flex: 1, padding: '10px', background: 'transparent', border: `1px solid ${C.b2}`, color: C.muted, borderRadius: 5, cursor: 'pointer', fontFamily: FONT, fontSize: 9, letterSpacing: '.1em' }}>
+              CANCELAR
+            </button>
+            <button type="submit" disabled={saving}
+              style={{ flex: 2, padding: '10px', background: 'rgba(186,117,23,0.15)', border: `1px solid ${C.gold}`, color: C.gold, borderRadius: 5, cursor: 'pointer', fontFamily: FONT, fontSize: 9, letterSpacing: '.1em' }}>
+              {saving ? 'GUARDANDO...' : 'GUARDAR CAMBIOS'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── Campos compartidos (nueva + editar) ───────────────────────────────────────
+function BetFields({ form, setForm, inp, lbl }) {
+  const potencial = form.cuota && form.stake && !isNaN(form.cuota) && !isNaN(form.stake)
+    ? (Number(form.stake) * (Number(form.cuota) - 1)).toFixed(2) : null
+
+  return (
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <label>
+          <span style={lbl}>FECHA</span>
+          <input style={inp} type="date" value={form.fecha}
+            onChange={e => setForm(p => ({ ...p, fecha: e.target.value }))} required />
+        </label>
+        <label>
+          <span style={lbl}>DEPORTE</span>
+          <select style={inp} value={form.deporte} onChange={e => setForm(p => ({ ...p, deporte: e.target.value }))}>
+            {DEPORTES.map(d => <option key={d} value={d}>{ICONS[d]} {d}</option>)}
+          </select>
+        </label>
+      </div>
+
+      <label style={{ display: 'block', marginBottom: 10 }}>
+        <span style={lbl}>PARTIDO</span>
+        <input style={inp} type="text" placeholder="PSG vs Arsenal — UCL Final" value={form.partido}
+          onChange={e => setForm(p => ({ ...p, partido: e.target.value }))} required />
+      </label>
+
+      <label style={{ display: 'block', marginBottom: 10 }}>
+        <span style={lbl}>PICK</span>
+        <input style={inp} type="text" placeholder="Saque de banda 0:00–0:59" value={form.pick}
+          onChange={e => setForm(p => ({ ...p, pick: e.target.value }))} required />
+      </label>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: potencial ? 8 : 14 }}>
+        <label>
+          <span style={lbl}>CUOTA</span>
+          <input style={inp} type="number" step="0.01" min="1.01" placeholder="1.95" value={form.cuota}
+            onChange={e => setForm(p => ({ ...p, cuota: e.target.value }))} required />
+        </label>
+        <label>
+          <span style={lbl}>STAKE Q</span>
+          <input style={inp} type="number" step="0.01" min="1" placeholder="100" value={form.stake}
+            onChange={e => setForm(p => ({ ...p, stake: e.target.value }))} required />
+        </label>
+      </div>
+    </>
+  )
+}
+
 // ── Panel Resumen ─────────────────────────────────────────────────────────────
 function PanelResumen({ bets, metrics, config, fechasOrden }) {
   const cardStyle    = { background: C.bg3, border: `1px solid ${C.b2}`, borderRadius: 8, padding: '12px 14px', marginBottom: 8 }
   const sectionStyle = { fontSize: 9, color: C.faint, letterSpacing: '.2em', margin: '20px 0 10px', textTransform: 'uppercase' }
 
-  // Por deporte
   const porDep = {}
   metrics.cerradas.forEach(b => {
     if (!porDep[b.deporte]) porDep[b.deporte] = { gan: 0, apost: 0, n: 0, wins: 0 }
@@ -512,7 +592,6 @@ function PanelResumen({ bets, metrics, config, fechasOrden }) {
 
   return (
     <div>
-      {/* Por día */}
       {fechasOrden.length > 0 && <div style={sectionStyle}>Por día</div>}
       {fechasOrden.map(fecha => {
         const dBets   = bets.filter(b => b.fecha === fecha)
@@ -529,7 +608,7 @@ function PanelResumen({ bets, metrics, config, fechasOrden }) {
         return (
           <div key={fecha} style={{ ...cardStyle, borderLeft: `3px solid ${color}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.text }}>{fecha}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text }}>{fmtFecha(fecha)}</div>
               <div style={{ fontSize: 20, fontWeight: 700, color }}>{cerradas.length ? (gan >= 0 ? '+' : '') + fmtQ(gan) : '—'}</div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6 }}>
@@ -549,7 +628,6 @@ function PanelResumen({ bets, metrics, config, fechasOrden }) {
         )
       })}
 
-      {/* Por deporte */}
       {Object.keys(porDep).length > 0 && (
         <>
           <div style={sectionStyle}>Por deporte</div>
@@ -570,15 +648,15 @@ function PanelResumen({ bets, metrics, config, fechasOrden }) {
         </>
       )}
 
-      {/* Progreso hacia meta */}
       <div style={sectionStyle}>Progreso hacia meta</div>
       <div style={cardStyle}>
         {[
-          { l: 'Bank inicial', v: fmtQ(config.bank_inicial),                          c: '#555'   },
-          { l: 'Bank actual',  v: fmtQ(metrics.bankActual),                            c: C.text   },
-          { l: 'Meta',         v: fmtQ(config.meta),                                   c: C.gold   },
-          { l: 'Falta',        v: fmtQ(Math.max(0, config.meta - metrics.bankActual)), c: C.blue   },
-          { l: 'Progreso',     v: metrics.progreso.toFixed(1) + '%',                   c: C.green  },
+          { l: 'Bank inicial', v: fmtQ(config.bank_inicial),                          c: '#555'  },
+          { l: 'Bank actual',  v: fmtQ(metrics.bankActual),                            c: C.text  },
+          { l: 'Disponible',   v: fmtQ(metrics.libre),                                 c: C.green },
+          { l: 'Meta',         v: fmtQ(config.meta),                                   c: C.gold  },
+          { l: 'Falta',        v: fmtQ(Math.max(0, config.meta - metrics.bankActual)), c: C.blue  },
+          { l: 'Progreso',     v: metrics.progreso.toFixed(1) + '%',                   c: C.green },
         ].map(r => (
           <div key={r.l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #151515', fontSize: 11 }}>
             <span style={{ color: '#555' }}>{r.l}</span>
@@ -587,7 +665,6 @@ function PanelResumen({ bets, metrics, config, fechasOrden }) {
         ))}
       </div>
 
-      {/* Pendientes */}
       {metrics.pendientes.length > 0 && (
         <>
           <div style={sectionStyle}>En juego</div>
