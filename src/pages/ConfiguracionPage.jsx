@@ -368,7 +368,7 @@ export default function ConfiguracionPage({
         name: accountForm.name,
         account_type: accountForm.accountType,
         currency: accountForm.currency,
-        sort_order: Number(accountForm.sortOrder || 0),
+        sort_order: 0,   // gestionado automáticamente por saldo
         credit_limit: isTC && accountForm.creditLimit ? Number(accountForm.creditLimit) : null,
         billing_close_day: isTC && accountForm.billingCloseDay ? Number(accountForm.billingCloseDay) : null,
         payment_due_day: isTC && accountForm.paymentDueDay ? Number(accountForm.paymentDueDay) : null,
@@ -403,8 +403,8 @@ export default function ConfiguracionPage({
       const payload = {
         telegram_user_id: Number(userId),
         name: categoryForm.name,
-        kind: categoryForm.kind,
-        sort_order: Number(categoryForm.sortOrder || 0),
+        kind: selectedCategoryId ? categoryForm.kind : categoryFilter, // al crear, usa el tab activo
+        sort_order: 0,   // orden gestionado automáticamente
       }
 
       if (selectedCategoryId) {
@@ -664,15 +664,6 @@ export default function ConfiguracionPage({
               </select>
             </label>
 
-            <label>
-              <span>Orden</span>
-              <input
-                type="number"
-                value={accountForm.sortOrder}
-                onChange={(e) => setAccountForm((p) => ({ ...p, sortOrder: e.target.value }))}
-              />
-            </label>
-
             {accountForm.accountType === 'credit_card' && (
               <>
                 <label>
@@ -825,7 +816,7 @@ export default function ConfiguracionPage({
           )}
 
           <form className="form-grid" onSubmit={submitCategory}>
-            <label>
+            <label className="full-span">
               <span>Nombre</span>
               <input
                 value={categoryForm.name}
@@ -834,26 +825,20 @@ export default function ConfiguracionPage({
               />
             </label>
 
-            <label>
-              <span>Tipo</span>
-              <select
-                value={categoryForm.kind}
-                onChange={(e) => setCategoryForm((p) => ({ ...p, kind: e.target.value }))}
-                disabled={Boolean(selectedCategory?.is_system)}
-              >
-                <option value="EGR">Egreso</option>
-                <option value="ING">Ingreso</option>
-              </select>
-            </label>
-
-            <label>
-              <span>Orden</span>
-              <input
-                type="number"
-                value={categoryForm.sortOrder}
-                onChange={(e) => setCategoryForm((p) => ({ ...p, sortOrder: e.target.value }))}
-              />
-            </label>
+            {/* Al editar una categoría existente se puede cambiar de tipo */}
+            {selectedCategory && (
+              <label>
+                <span>Tipo</span>
+                <select
+                  value={categoryForm.kind}
+                  onChange={(e) => setCategoryForm((p) => ({ ...p, kind: e.target.value }))}
+                  disabled={Boolean(selectedCategory.is_system)}
+                >
+                  <option value="EGR">Egreso</option>
+                  <option value="ING">Ingreso</option>
+                </select>
+              </label>
+            )}
 
             <div className="full-span form-actions split-actions">
               <button className="primary-btn" type="submit" disabled={savingCategory}>

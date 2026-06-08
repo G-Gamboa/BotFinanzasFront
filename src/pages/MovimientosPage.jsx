@@ -33,10 +33,22 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
-  const liquidAccounts = useMemo(
-    () => (catalogos?.accounts?.liquid || []).map((a) => a.name),
-    [catalogos]
+  // saldosLiquidos debe ir antes que liquidAccounts para el ordenamiento por balance
+  const saldosLiquidos = useMemo(
+    () => disponibles?.saldos_liquidos || [],
+    [disponibles]
   )
+
+  const liquidAccounts = useMemo(() => {
+    const accounts = catalogos?.accounts?.liquid || []
+    if (!saldosLiquidos.length) return accounts.map((a) => a.name)
+    // Ordenar por saldo descendente (más fondos primero)
+    const balMap = {}
+    saldosLiquidos.forEach((s) => { balMap[s.cuenta] = Number(s.saldo || 0) })
+    return [...accounts]
+      .sort((a, b) => (balMap[b.name] || 0) - (balMap[a.name] || 0))
+      .map((a) => a.name)
+  }, [catalogos, saldosLiquidos])
 
   const investmentAccounts = useMemo(
     () => (catalogos?.accounts?.investment || []).map((a) => a.name),
@@ -98,11 +110,6 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
 
   const prestamosDisponibles = useMemo(
     () => disponibles?.prestamos_por_persona || [],
-    [disponibles]
-  )
-
-  const saldosLiquidos = useMemo(
-    () => disponibles?.saldos_liquidos || [],
     [disponibles]
   )
 
