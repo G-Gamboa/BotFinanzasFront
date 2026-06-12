@@ -335,6 +335,37 @@ export default function App() {
     }
   }
 
+  const ccAlerts = useMemo(() => {
+    const items = tcBalances?.items || []
+    if (!items.length) return []
+
+    const now = new Date()
+    const gt = new Date(now.toLocaleString('en-US', { timeZone: 'America/Guatemala' }))
+    const todayDay = gt.getDate()
+
+    const fiveLater = new Date(gt)
+    fiveLater.setDate(gt.getDate() + 5)
+    const fiveDay = fiveLater.getDate()
+
+    const alerts = []
+    for (const tc of items) {
+      const isUsd = tc.tc_type === 'USD'
+      const balance = isUsd ? Number(tc.balance) : Number(tc.balance_gtq)
+      if (balance <= 0) continue
+      const fmtBalance = isUsd
+        ? `$${balance.toFixed(2)}`
+        : `Q${balance.toFixed(2)}`
+
+      if (tc.billing_close_day && todayDay === tc.billing_close_day) {
+        alerts.push({ type: 'corte', card: tc.name, amount: fmtBalance })
+      }
+      if (tc.payment_due_day && fiveDay === tc.payment_due_day) {
+        alerts.push({ type: 'pago', card: tc.name, amount: fmtBalance })
+      }
+    }
+    return alerts
+  }, [tcBalances])
+
   const deudasActivas = useMemo(() => {
     const items = deudas?.items || []
     return items.filter(
@@ -425,6 +456,27 @@ export default function App() {
           </button>
         </div>
       ) : null}
+
+      {/* Alertas de tarjeta de crédito: corte y vencimiento próximo */}
+      {!isGuest && ccAlerts.map((alert, i) => (
+        <div key={i} style={{
+          background: alert.type === 'corte'
+            ? 'color-mix(in srgb, var(--color-primary, #4f8ef7) 12%, var(--card-soft))'
+            : 'color-mix(in srgb, #f59e0b 12%, var(--card-soft))',
+          border: `1.5px solid ${alert.type === 'corte'
+            ? 'color-mix(in srgb, var(--color-primary, #4f8ef7) 35%, transparent)'
+            : 'color-mix(in srgb, #f59e0b 40%, transparent)'}`,
+          borderRadius: '16px',
+          padding: '12px 16px',
+          marginBottom: '10px',
+          fontSize: '0.84rem',
+          lineHeight: 1.4,
+        }}>
+          {alert.type === 'corte'
+            ? `✂️ Hoy es fecha de corte de ${alert.card} — Saldo: ${alert.amount}`
+            : `📅 Quedan 5 días para pagar ${alert.card} — Saldo: ${alert.amount}`}
+        </div>
+      ))}
 
       {/* Banner de modo demo — visible solo para guests, encima de toda la app */}
       {isGuest ? (
