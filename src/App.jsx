@@ -347,20 +347,20 @@ export default function App() {
     fiveLater.setDate(gt.getDate() + 5)
     const fiveDay = fiveLater.getDate()
 
+    const fmt = (amount) =>
+      `Q${Number(amount ?? 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
     const alerts = []
     for (const tc of items) {
-      const isUsd = tc.tc_type === 'USD'
-      const balance = isUsd ? Number(tc.balance) : Number(tc.balance_gtq)
-      if (balance <= 0) continue
-      const fmtBalance = isUsd
-        ? `$${balance.toFixed(2)}`
-        : `Q${balance.toFixed(2)}`
-
+      // Alerta de corte: hoy es el día de corte → muestra balance_at_close (lo que cerró hoy)
       if (tc.billing_close_day && todayDay === tc.billing_close_day) {
-        alerts.push({ type: 'corte', card: tc.name, amount: fmtBalance })
+        const amount = tc.balance_at_close_gtq ?? tc.balance_gtq ?? 0
+        if (amount > 0) alerts.push({ type: 'corte', card: tc.name, amount: fmt(amount) })
       }
+      // Alerta de pago: faltan 5 días → muestra pendiente (balance_at_close - pagos desde corte)
       if (tc.payment_due_day && fiveDay === tc.payment_due_day) {
-        alerts.push({ type: 'pago', card: tc.name, amount: fmtBalance })
+        const amount = tc.pending_to_pay_gtq ?? tc.balance_gtq ?? 0
+        if (amount > 0) alerts.push({ type: 'pago', card: tc.name, amount: fmt(amount) })
       }
     }
     return alerts
