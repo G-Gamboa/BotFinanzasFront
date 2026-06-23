@@ -338,6 +338,34 @@ export default function TarjetasPage({
                   )}
                 </div>
 
+                {/* Saldo a corte y saldo total */}
+                {tc.billing_close_day && (tc.pending_to_pay_gtq != null || tc.balance_at_close_gtq != null) && (
+                  <div style={{
+                    display: 'grid', gap: 4, marginTop: 10,
+                    padding: '8px 10px', borderRadius: 8,
+                    background: 'var(--card-soft, rgba(0,0,0,.04))',
+                    border: '1px solid var(--border-soft, rgba(0,0,0,.08))',
+                  }}>
+                    {tc.last_close_date && (
+                      <span style={{ fontSize: '0.7rem', opacity: 0.5, marginBottom: 2 }}>
+                        Corte {fmtDate(tc.last_close_date)}
+                      </span>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                      <span style={{ opacity: 0.7 }}>Saldo a corte</span>
+                      <strong style={{ color: (tc.pending_to_pay_gtq ?? 0) > 0 ? 'var(--color-danger, #e53935)' : 'inherit' }}>
+                        {q(tc.pending_to_pay_gtq ?? 0)}
+                      </strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                      <span style={{ opacity: 0.7 }}>Saldo total</span>
+                      <strong style={{ color: (tc.balance_gtq ?? 0) > 0 ? 'var(--color-danger, #e53935)' : 'inherit' }}>
+                        {q(tc.balance_gtq ?? 0)}
+                      </strong>
+                    </div>
+                  </div>
+                )}
+
                 {/* Disponible */}
                 {(availGeneral != null || availVC != null) && (
                   <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
