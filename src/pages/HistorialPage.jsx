@@ -68,6 +68,7 @@ export default function HistorialPage({
     date_to: '',
     movement_type: '',
     category_name: '',
+    payment_method: '',
     note: '',
     amount_min: '',
     amount_max: '',
@@ -297,6 +298,21 @@ export default function HistorialPage({
             </label>
           )}
 
+          {(filters.movement_type === '' || filters.movement_type === 'ING' || filters.movement_type === 'EGR') && (
+            <label>
+              <span>Método de pago</span>
+              <select
+                value={filters.payment_method}
+                onChange={(e) => updateFilter('payment_method', e.target.value)}
+              >
+                <option value="">Todos</option>
+                <option value="cash">Efectivo</option>
+                <option value="transfer">Transferencia</option>
+                <option value="credit_card">Tarjeta de crédito</option>
+              </select>
+            </label>
+          )}
+
           <label className="full-span">
             <span>Buscar en nota</span>
             <input
@@ -340,7 +356,7 @@ export default function HistorialPage({
               type="button"
               onClick={() => {
                 const next = {
-                  date_from: '', date_to: '', movement_type: '', category_name: '', note: '',
+                  date_from: '', date_to: '', movement_type: '', category_name: '', payment_method: '', note: '',
                   amount_min: '', amount_max: '', limit: PAGE_SIZE,
                 }
                 setFilters(next)
