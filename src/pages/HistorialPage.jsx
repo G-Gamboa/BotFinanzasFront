@@ -67,11 +67,17 @@ export default function HistorialPage({
     date_from: '',
     date_to: '',
     movement_type: '',
+    category_name: '',
     note: '',
     amount_min: '',
     amount_max: '',
     limit: PAGE_SIZE,
   })
+
+  const categoryOptions = useMemo(() => {
+    if (filters.movement_type !== 'ING' && filters.movement_type !== 'EGR') return []
+    return categoriasItems.filter((c) => c.kind === filters.movement_type && c.is_active)
+  }, [categoriasItems, filters.movement_type])
 
   async function loadHistorial(currentPage = page, currentFilters = filters) {
     if (!userId) return
@@ -267,7 +273,7 @@ export default function HistorialPage({
             <span>Tipo</span>
             <select
               value={filters.movement_type}
-              onChange={(e) => updateFilter('movement_type', e.target.value)}
+              onChange={(e) => setFilters((prev) => ({ ...prev, movement_type: e.target.value, category_name: '' }))}
             >
               <option value="">Todos</option>
               <option value="ING">Ingresos</option>
@@ -275,6 +281,21 @@ export default function HistorialPage({
               <option value="MOV">Movimientos</option>
             </select>
           </label>
+
+          {categoryOptions.length > 0 && (
+            <label>
+              <span>Categoría</span>
+              <select
+                value={filters.category_name}
+                onChange={(e) => updateFilter('category_name', e.target.value)}
+              >
+                <option value="">Todas</option>
+                {categoryOptions.map((c) => (
+                  <option key={c.id} value={c.name}>{c.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <label className="full-span">
             <span>Buscar en nota</span>
@@ -319,7 +340,7 @@ export default function HistorialPage({
               type="button"
               onClick={() => {
                 const next = {
-                  date_from: '', date_to: '', movement_type: '', note: '',
+                  date_from: '', date_to: '', movement_type: '', category_name: '', note: '',
                   amount_min: '', amount_max: '', limit: PAGE_SIZE,
                 }
                 setFilters(next)

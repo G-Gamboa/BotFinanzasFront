@@ -188,6 +188,7 @@ export const api = {
     if (params.date_from) search.set('date_from', params.date_from)
     if (params.date_to) search.set('date_to', params.date_to)
     if (params.movement_type) search.set('movement_type', params.movement_type)
+    if (params.category_name) search.set('category_name', params.category_name)
     if (params.note) search.set('note', params.note)
     if (params.amount_min != null && params.amount_min !== '') search.set('amount_min', String(params.amount_min))
     if (params.amount_max != null && params.amount_max !== '') search.set('amount_max', String(params.amount_max))
