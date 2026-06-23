@@ -347,6 +347,10 @@ export default function App() {
     fiveLater.setDate(gt.getDate() + 5)
     const fiveDay = fiveLater.getDate()
 
+    const oneLater = new Date(gt)
+    oneLater.setDate(gt.getDate() + 1)
+    const oneDay = oneLater.getDate()
+
     const fmt = (amount) =>
       `Q${Number(amount ?? 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
@@ -357,10 +361,15 @@ export default function App() {
         const amount = tc.balance_at_close_gtq ?? tc.balance_gtq ?? 0
         if (amount > 0) alerts.push({ type: 'corte', card: tc.name, amount: fmt(amount) })
       }
-      // Alerta de pago: faltan 5 días → muestra pendiente (balance_at_close - pagos desde corte)
+      // Alerta de pago: faltan 5 días
       if (tc.payment_due_day && fiveDay === tc.payment_due_day) {
         const amount = tc.pending_to_pay_gtq ?? tc.balance_gtq ?? 0
         if (amount > 0) alerts.push({ type: 'pago', card: tc.name, amount: fmt(amount) })
+      }
+      // Alerta de pago: falta 1 día (recordatorio urgente)
+      if (tc.payment_due_day && oneDay === tc.payment_due_day) {
+        const amount = tc.pending_to_pay_gtq ?? tc.balance_gtq ?? 0
+        if (amount > 0) alerts.push({ type: 'pago_urgente', card: tc.name, amount: fmt(amount) })
       }
     }
     return alerts
@@ -462,10 +471,14 @@ export default function App() {
         <div key={i} style={{
           background: alert.type === 'corte'
             ? 'color-mix(in srgb, var(--color-primary, #4f8ef7) 12%, var(--card-soft))'
-            : 'color-mix(in srgb, #f59e0b 12%, var(--card-soft))',
+            : alert.type === 'pago_urgente'
+              ? 'color-mix(in srgb, #e53935 12%, var(--card-soft))'
+              : 'color-mix(in srgb, #f59e0b 12%, var(--card-soft))',
           border: `1.5px solid ${alert.type === 'corte'
             ? 'color-mix(in srgb, var(--color-primary, #4f8ef7) 35%, transparent)'
-            : 'color-mix(in srgb, #f59e0b 40%, transparent)'}`,
+            : alert.type === 'pago_urgente'
+              ? 'color-mix(in srgb, #e53935 50%, transparent)'
+              : 'color-mix(in srgb, #f59e0b 40%, transparent)'}`,
           borderRadius: '16px',
           padding: '12px 16px',
           marginBottom: '10px',
@@ -474,7 +487,9 @@ export default function App() {
         }}>
           {alert.type === 'corte'
             ? `✂️ Hoy es fecha de corte de ${alert.card} — Saldo: ${alert.amount}`
-            : `📅 Quedan 5 días para pagar ${alert.card} — Saldo: ${alert.amount}`}
+            : alert.type === 'pago_urgente'
+              ? `⚠️ Mañana vence el pago de ${alert.card} — Saldo: ${alert.amount}`
+              : `📅 Quedan 5 días para pagar ${alert.card} — Saldo: ${alert.amount}`}
         </div>
       ))}
 
