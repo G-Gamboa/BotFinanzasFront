@@ -114,6 +114,15 @@ export default function TarjetasPage({
     [tcBalances],
   )
 
+  const totalCorteGTQ = useMemo(
+    () => tcBalances.reduce((s, tc) => s + (tc.pending_to_pay_gtq ?? 0), 0),
+    [tcBalances],
+  )
+  const totalCorteUSD = useMemo(
+    () => tcBalances.reduce((s, tc) => s + (tc.pending_usd_portion ?? 0), 0),
+    [tcBalances],
+  )
+
   const activePlans = useMemo(
     () => installmentPlans.filter((p) => p.status === 'active'),
     [installmentPlans],
@@ -260,6 +269,18 @@ export default function TarjetasPage({
                 <strong style={{ color: 'var(--color-danger, #e53935)' }}>{usd(totalUSD)}</strong>
               </div>
             )}
+            {totalCorteGTQ > 0 && (
+              <div className="stat-chip">
+                <span>Corte Q</span>
+                <strong style={{ color: 'var(--color-danger, #e53935)' }}>{q(totalCorteGTQ)}</strong>
+              </div>
+            )}
+            {totalCorteUSD > 0 && (
+              <div className="stat-chip">
+                <span>Corte $</span>
+                <strong style={{ color: 'var(--color-danger, #e53935)' }}>{usd(totalCorteUSD)}</strong>
+              </div>
+            )}
           </div>
         )}
 
@@ -337,34 +358,6 @@ export default function TarjetasPage({
                     </div>
                   )}
                 </div>
-
-                {/* Saldo a corte y saldo total */}
-                {tc.billing_close_day && (tc.pending_to_pay_gtq != null || tc.balance_at_close_gtq != null) && (
-                  <div style={{
-                    display: 'grid', gap: 4, marginTop: 10,
-                    padding: '8px 10px', borderRadius: 8,
-                    background: 'var(--card-soft, rgba(0,0,0,.04))',
-                    border: '1px solid var(--border-soft, rgba(0,0,0,.08))',
-                  }}>
-                    {tc.last_close_date && (
-                      <span style={{ fontSize: '0.7rem', opacity: 0.5, marginBottom: 2 }}>
-                        Corte {fmtDate(tc.last_close_date)}
-                      </span>
-                    )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                      <span style={{ opacity: 0.7 }}>Saldo a corte</span>
-                      <strong style={{ color: (tc.pending_to_pay_gtq ?? 0) > 0 ? 'var(--color-danger, #e53935)' : 'inherit' }}>
-                        {q(tc.pending_to_pay_gtq ?? 0)}
-                      </strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                      <span style={{ opacity: 0.7 }}>Saldo total</span>
-                      <strong style={{ color: (tc.balance_gtq ?? 0) > 0 ? 'var(--color-danger, #e53935)' : 'inherit' }}>
-                        {q(tc.balance_gtq ?? 0)}
-                      </strong>
-                    </div>
-                  </div>
-                )}
 
                 {/* Disponible */}
                 {(availGeneral != null || availVC != null) && (
