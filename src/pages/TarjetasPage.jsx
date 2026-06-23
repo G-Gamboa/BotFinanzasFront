@@ -359,6 +359,33 @@ export default function TarjetasPage({
                   )}
                 </div>
 
+                {/* Saldo a corte */}
+                {tc.billing_close_day && (
+                  <div style={{
+                    display: 'grid', gap: 3, marginTop: 8,
+                    paddingTop: 8,
+                    borderTop: '1px solid var(--border-soft, rgba(128,128,128,.2))',
+                  }}>
+                    {tc.last_close_date && (
+                      <span style={{ fontSize: '0.7rem', opacity: 0.45 }}>
+                        Último corte {fmtDate(tc.last_close_date)}
+                      </span>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                      <span style={{ opacity: 0.7 }}>Saldo a corte</span>
+                      <strong style={{ color: tc.pending_to_pay_gtq > 0 ? 'var(--color-danger, #e53935)' : 'var(--color-success, #43a047)' }}>
+                        {q(tc.pending_to_pay_gtq)}
+                      </strong>
+                    </div>
+                    {tc.pending_usd_portion != null && tc.pending_usd_portion > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                        <span style={{ opacity: 0.6 }}>Porción $ a corte</span>
+                        <span style={{ color: 'var(--color-danger, #e53935)' }}>{usd(tc.pending_usd_portion)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Disponible */}
                 {(availGeneral != null || availVC != null) && (
                   <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
