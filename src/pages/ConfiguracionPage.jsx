@@ -101,6 +101,7 @@ export default function ConfiguracionPage({
   const categoriasItems = useMemo(() => categorias?.items || [], [categorias])
   const loanPeopleItems = useMemo(() => loanPeople?.items || [], [loanPeople])
   const deudasItems = useMemo(() => deudas?.items || [], [deudas])
+  const activeDeudas = useMemo(() => deudasItems.filter((d) => d.status !== 'paid'), [deudasItems])
   const ahorroAccounts = useMemo(
     () => cuentasItems.filter((a) => a.account_type === 'cash' || a.account_type === 'bank').map((a) => a.name),
     [cuentasItems]
@@ -932,36 +933,17 @@ export default function ConfiguracionPage({
         </Panel>
       ) : null}
 
-      {/* ── Reordenar cuentas ── */}
-      <Panel title="Orden de cuentas">
-        <div style={{ display: 'grid', gap: '0.5rem' }}>
-          {sortedAccounts.map((acc, idx) => (
-            <div key={acc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.8rem', borderRadius: '0.8rem', background: 'var(--card-soft)', border: '1px solid var(--border-soft)' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                <button className="ghost-btn" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }} onClick={() => reorderAccount(acc.id, 'up')} disabled={idx === 0}>↑</button>
-                <button className="ghost-btn" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }} onClick={() => reorderAccount(acc.id, 'down')} disabled={idx === sortedAccounts.length - 1}>↓</button>
-              </div>
-              <div style={{ flex: 1 }}>
-                <span style={{ fontWeight: 700 }}>{acc.name}</span>
-                <span style={{ marginLeft: '0.5rem', fontSize: '0.78rem', color: 'var(--text-soft)' }}>{acc.account_type} · {acc.currency}</span>
-              </div>
-              {!acc.is_active ? <span className="mini-chip">Inactiva</span> : null}
-            </div>
-          ))}
-        </div>
-      </Panel>
-
       {/* ── Editar Deudas ── */}
-      {deudasItems.length > 0 ? (
+      {activeDeudas.length > 0 ? (
         <Panel title="Editar deudas">
           <div className="config-select-row">
             <label>
               <span>Selecciona una deuda para editar</span>
               <select value={selectedDebtId} onChange={(e) => setSelectedDebtId(e.target.value)}>
                 <option value="">Selecciona…</option>
-                {deudasItems.map((d) => (
+                {activeDeudas.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.name} · {d.creditor} · {d.status === 'paid' ? 'Pagada' : 'Activa'}
+                    {d.name} · {d.creditor}
                   </option>
                 ))}
               </select>
