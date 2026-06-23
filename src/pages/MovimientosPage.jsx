@@ -114,22 +114,25 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
   )
 
   useEffect(() => {
-    setForm((prev) => ({
-      ...prev,
-      categoryName:
-        prev.movementType === 'ING'
-          ? (ingCategories[0] || '')
-          : prev.movementType === 'EGR'
-            ? (egrCategories[0] || '')
-            : '',
-      sourceAccountName: prev.sourceAccountName || liquidAccounts[0] || '',
-      targetAccountName: prev.targetAccountName || liquidAccounts[1] || liquidAccounts[0] || '',
-      accountName:
-        prev.paymentMethod === 'transfer'
-          ? (transferAccounts[0] || '')
-          : 'Efectivo',
-      loanPersonName: prev.loanPersonName || loanPeople[0] || '',
-    }))
+    setForm((prev) => {
+      const cats =
+        prev.movementType === 'ING' ? ingCategories :
+        prev.movementType === 'EGR' ? egrCategories : []
+      const categoryName = cats.includes(prev.categoryName)
+        ? prev.categoryName
+        : (cats[0] || '')
+      return {
+        ...prev,
+        categoryName,
+        sourceAccountName: prev.sourceAccountName || liquidAccounts[0] || '',
+        targetAccountName: prev.targetAccountName || liquidAccounts[1] || liquidAccounts[0] || '',
+        accountName:
+          prev.paymentMethod === 'transfer'
+            ? (transferAccounts[0] || '')
+            : 'Efectivo',
+        loanPersonName: prev.loanPersonName || loanPeople[0] || '',
+      }
+    })
   }, [ingCategories, egrCategories, liquidAccounts, transferAccounts, loanPeople])
 
   function updateField(field, value) {
