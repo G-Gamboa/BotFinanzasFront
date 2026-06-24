@@ -20,6 +20,7 @@ import {
   cacheInvalidateFinancial,
 } from './lib/cache'
 import { useTelegramMiniApp } from './hooks/useTelegramMiniApp'
+import { useWebSocket } from './hooks/useWebSocket'
 import { getPaletteByKey } from './theme'
 import { applyTheme } from './theme/applyTheme'
 import HistorialPage from './pages/HistorialPage'
@@ -283,6 +284,17 @@ export default function App() {
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [isReady, userId, loadAllData])
+
+  // ── WebSocket: sincronización en tiempo real ────────────────────────────────
+  const wsInitData = getTelegramInitData()
+  useWebSocket(
+    isGuest ? null : userId,
+    wsInitData || null,
+    useCallback((msg) => {
+      if (msg?.event !== 'invalidate') return
+      loadAllData({ invalidateFinancial: msg.scope !== 'all', invalidateAll: msg.scope === 'all' })
+    }, [loadAllData]),
+  )
 
   useEffect(() => {
     if (!preferencias || prefsApplied) return
