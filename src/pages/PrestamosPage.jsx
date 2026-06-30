@@ -9,6 +9,7 @@ const initialForm = {
   action: 'DAR',
   sourceAccountName: '',
   targetAccountName: '',
+  creditCardAccountId: '',
   loanPersonName: '',
   amount: '',
   note: '',
@@ -25,6 +26,11 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
 
   const liquidAccounts = useMemo(
     () => (catalogos?.accounts?.liquid || []).map((a) => a.name),
+    [catalogos]
+  )
+
+  const creditCards = useMemo(
+    () => catalogos?.accounts?.credit_cards || [],
     [catalogos]
   )
 
@@ -53,9 +59,10 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
       ...prev,
       sourceAccountName: prev.sourceAccountName || liquidAccounts[0] || '',
       targetAccountName: prev.targetAccountName || liquidAccounts[0] || '',
+      creditCardAccountId: prev.creditCardAccountId || creditCards[0]?.id?.toString() || '',
       loanPersonName: prev.loanPersonName || loanPeople[0] || '',
     }))
-  }, [liquidAccounts, loanPeople])
+  }, [liquidAccounts, loanPeople, creditCards])
 
   useEffect(() => {
     if (form.action !== 'COBRAR') return
@@ -119,15 +126,15 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
         loan_person_name: form.loanPersonName,
         amount: Number(form.amount),
         note:
-          form.action === 'DAR'
-            ? (form.note?.trim() || null)
-            : form.selectedConcept === 'General'
-              ? null
-              : form.selectedConcept,
+          form.action === 'COBRAR'
+            ? (form.selectedConcept === 'General' ? null : form.selectedConcept)
+            : (form.note?.trim() || null),
       }
 
       if (form.action === 'DAR') {
         payload.source_account_name = form.sourceAccountName
+      } else if (form.action === 'DAR_TC') {
+        payload.credit_card_account_id = Number(form.creditCardAccountId)
       } else {
         payload.target_account_name = form.targetAccountName
       }
@@ -137,7 +144,9 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
       setMessage(
         form.action === 'DAR'
           ? 'Préstamo registrado correctamente.'
-          : 'Cobro registrado correctamente.'
+          : form.action === 'DAR_TC'
+            ? 'Préstamo desde TC registrado correctamente.'
+            : 'Cobro registrado correctamente.'
       )
 
       setForm((prev) => ({
@@ -146,6 +155,7 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
         action: prev.action,
         sourceAccountName: liquidAccounts[0] || '',
         targetAccountName: liquidAccounts[0] || '',
+        creditCardAccountId: creditCards[0]?.id?.toString() || '',
         loanPersonName: loanPeople[0] || '',
         selectedConcept: 'General',
       }))
@@ -182,7 +192,10 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
               value={form.action}
               onChange={(e) => updateField('action', e.target.value)}
             >
-              <option value="DAR">Dar préstamo</option>
+              <option value="DAR">Dar préstamo (efectivo/banco)</option>
+              {creditCards.length > 0 && (
+                <option value="DAR_TC">Dar préstamo desde TC</option>
+              )}
               <option value="COBRAR">Cobrar préstamo</option>
             </select>
           </label>
@@ -222,6 +235,36 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
                   Disponible: Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
                 </div>
               ) : null}
+
+              <label className="full-span">
+                <span>Nota / concepto</span>
+                <input
+                  type="text"
+                  value={form.note}
+                  onChange={(e) => updateField('note', e.target.value)}
+                  placeholder="Opcional. Si va vacío, se guarda como General"
+                />
+              </label>
+            </>
+          ) : form.action === 'DAR_TC' ? (
+            <>
+              <label>
+                <span>Tarjeta de crédito</span>
+                <select
+                  value={form.creditCardAccountId}
+                  onChange={(e) => updateField('creditCardAccountId', e.target.value)}
+                >
+                  {creditCards.map((tc) => (
+                    <option key={tc.id} value={tc.id}>
+                      {tc.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="full-span helper-text">
+                El cargo se registra en la TC. La persona te debe devolver el monto.
+              </div>
 
               <label className="full-span">
                 <span>Nota / concepto</span>
@@ -294,7 +337,9 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
                 ? 'Guardando...'
                 : form.action === 'DAR'
                   ? 'Guardar préstamo'
-                  : 'Registrar cobro'}
+                  : form.action === 'DAR_TC'
+                    ? 'Guardar préstamo TC'
+                    : 'Registrar cobro'}
             </button>
           </div>
         </form>
@@ -318,7 +363,14 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
               <div className="loan-concepts-list">
                 {(item.concepts || []).map((concept) => (
                   <div key={`${item.person}-${concept.concept}`} className="loan-concept-row">
-                    <span>{concept.concept}</span>
+                    <span>
+                      {concept.concept}
+                      {concept.is_tc_loan && (
+                        <span className="tc-badge" title={concept.tc_account_name || 'TC'}>
+                          TC
+                        </span>
+                      )}
+                    </span>
                     <span>Q {Number(concept.balance).toFixed(2)}</span>
                   </div>
                 ))}
