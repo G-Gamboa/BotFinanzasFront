@@ -54,6 +54,13 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
     return selectedPersonData.concepts || []
   }, [selectedPersonData])
 
+  const selectedConceptData = useMemo(
+    () => availableConcepts.find((c) => c.concept === form.selectedConcept) || null,
+    [availableConcepts, form.selectedConcept]
+  )
+
+  const isTcCobro = form.action === 'COBRAR' && selectedConceptData?.is_tc_loan === true
+
   useEffect(() => {
     setForm((prev) => ({
       ...prev,
@@ -278,19 +285,21 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
             </>
           ) : (
             <>
-              <label>
-                <span>Cuenta destino</span>
-                <select
-                  value={form.targetAccountName}
-                  onChange={(e) => updateField('targetAccountName', e.target.value)}
-                >
-                  {liquidAccounts.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {!isTcCobro && (
+                <label>
+                  <span>Cuenta destino</span>
+                  <select
+                    value={form.targetAccountName}
+                    onChange={(e) => updateField('targetAccountName', e.target.value)}
+                  >
+                    {liquidAccounts.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
 
               <label>
                 <span>Concepto a cobrar</span>
@@ -314,6 +323,12 @@ export default function PrestamosPage({ userId, api, catalogos, disponibles, onR
               {form.selectedConcept ? (
                 <div className="full-span helper-text">
                   Disponible: Q {getSelectedConceptBalance().toFixed(2)}
+                </div>
+              ) : null}
+
+              {isTcCobro && selectedConceptData?.tc_account_name ? (
+                <div className="full-span helper-text">
+                  El cobro se abonará directamente a <strong>{selectedConceptData.tc_account_name}</strong>.
                 </div>
               ) : null}
             </>
