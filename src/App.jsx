@@ -27,6 +27,7 @@ import HistorialPage from './pages/HistorialPage'
 import TarjetasPage from './pages/TarjetasPage'
 import GuestBanner from './components/GuestBanner'
 import BettingPage from './pages/BettingPage'
+import PresupuestoPage from './pages/PresupuestoPage'
 
 const demoApi = createDemoApi({
   catalogos:    demoCatalogos,
@@ -100,6 +101,7 @@ export default function App() {
   const [preferencias, setPreferencias] = useState(null)
   const [tcBalances, setTcBalances] = useState(null)
   const [installmentPlans, setInstallmentPlans] = useState(null)
+  const [presupuesto, setPresupuesto] = useState(null)
   const [autoChargesNotice, setAutoChargesNotice] = useState('')
 
   const userId = tgUserId || manualUserId
@@ -110,8 +112,9 @@ export default function App() {
   )
 
   const userLabel = tgUserId ? normalizeUserLabel(user) : `Prueba manual · ${manualUserId}`
-  const canUsePrestamos = Boolean(catalogos?.user?.can_use_loans)
-  const canUseTarjetas  = (tcBalances?.items?.length ?? 0) > 0
+  const canUsePrestamos   = Boolean(catalogos?.user?.can_use_loans)
+  const canUseTarjetas    = (tcBalances?.items?.length ?? 0) > 0
+  const canUsePresupuesto = !isGuest
 
   useEffect(() => {
     applyTheme(palette)
@@ -192,6 +195,7 @@ export default function App() {
           preferenciasData,
           tcBalancesData,
           installmentPlansData,
+          presupuestoData,
         ] = await Promise.all([
           api.getHealth(),
           api.getCatalogos(userId),
@@ -204,6 +208,7 @@ export default function App() {
           api.getPreferencias(userId),
           api.getTCBalances(userId),
           api.getInstallmentPlans(userId),
+          api.getPresupuesto(userId),
         ])
 
         setHealth(healthData)
@@ -217,6 +222,7 @@ export default function App() {
         setPreferencias(preferenciasData)
         setTcBalances(tcBalancesData)
         setInstallmentPlans(installmentPlansData)
+        setPresupuesto(presupuestoData)
 
         lastFetchRef.current = Date.now()
 
@@ -542,6 +548,7 @@ export default function App() {
             onChange={setActiveTab}
             showPrestamos={canUsePrestamos}
             showTarjetas={canUseTarjetas}
+            showPresupuesto={canUsePresupuesto}
             tabOrder={preferencias?.tab_order}
           />
 
@@ -610,6 +617,16 @@ export default function App() {
               catalogos={catalogos}
               disponibles={disponibles}
               onRefreshData={isGuest ? () => {} : () => loadAllData({ invalidateFinancial: true })}
+            />
+          )}
+
+          {activeTab === 'presupuesto' && canUsePresupuesto && (
+            <PresupuestoPage
+              userId={userId}
+              api={api}
+              presupuesto={presupuesto}
+              categorias={categoriasAdmin}
+              onRefreshData={() => loadAllData({ invalidateFinancial: true })}
             />
           )}
         </>

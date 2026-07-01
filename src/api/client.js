@@ -183,6 +183,15 @@ export const api = {
   patchBettingConfig: (payload) =>
     request('/betting/config/update', { method: 'PATCH', body: JSON.stringify(payload) }),
 
+  // ── Presupuesto mensual ───────────────────────────────────────────────────
+  getPresupuesto: (userId) => request(`/presupuesto/${userId}`),
+  postPresupuesto: (payload) =>
+    request('/presupuesto', { method: 'POST', body: JSON.stringify(payload) }),
+  patchPresupuesto: (budgetId, payload) =>
+    request(`/presupuesto/${budgetId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deletePresupuesto: (budgetId, userId) =>
+    request(`/presupuesto/${budgetId}?telegram_user_id=${userId}`, { method: 'DELETE' }),
+
   getHistorial: (userId, params = {}) => {
     const search = new URLSearchParams()
     if (params.date_from) search.set('date_from', params.date_from)

@@ -8,9 +8,10 @@ const baseTabs = [
 export default function NavTabs({
   current,
   onChange,
-  showPrestamos = false,
-  showTarjetas  = false,
-  tabOrder      = null,
+  showPrestamos  = false,
+  showTarjetas   = false,
+  showPresupuesto = false,
+  tabOrder       = null,
 }) {
   // Construir lista de tabs disponibles
   let tabs = [...baseTabs]
@@ -21,6 +22,9 @@ export default function NavTabs({
   if (showTarjetas) {
     const deudasIdx = tabs.findIndex((t) => t.key === 'deudas')
     tabs.splice(deudasIdx, 0, { key: 'tarjetas', label: 'TC' })
+  }
+  if (showPresupuesto) {
+    tabs.push({ key: 'presupuesto', label: 'Presupuesto' })
   }
 
   // Aplicar orden personalizado si existe
