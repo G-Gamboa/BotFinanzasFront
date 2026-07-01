@@ -26,6 +26,7 @@ export default function NavTabs({
   if (showPresupuesto) {
     tabs.push({ key: 'presupuesto', label: 'Presupuesto' })
   }
+  tabs.push({ key: 'vault', label: 'Bóveda' })
 
   // Aplicar orden personalizado si existe
   if (tabOrder && tabOrder.length > 0) {

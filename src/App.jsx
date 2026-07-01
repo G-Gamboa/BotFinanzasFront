@@ -27,6 +27,7 @@ import HistorialPage from './pages/HistorialPage'
 import TarjetasPage from './pages/TarjetasPage'
 import GuestBanner from './components/GuestBanner'
 import PresupuestoPage from './pages/PresupuestoPage'
+import VaultPage from './pages/VaultPage'
 
 const demoApi = createDemoApi({
   catalogos:    demoCatalogos,
@@ -612,6 +613,13 @@ export default function App() {
               presupuesto={presupuesto}
               categorias={categoriasAdmin}
               onRefreshData={() => loadAllData({ invalidateFinancial: true })}
+            />
+          )}
+
+          {activeTab === 'vault' && !isGuest && (
+            <VaultPage
+              userId={userId}
+              api={api}
             />
           )}
         </>

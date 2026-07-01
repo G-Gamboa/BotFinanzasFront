@@ -172,6 +172,20 @@ export const api = {
   patchAdminUsuario: (userId, payload) =>
     request(`/admin/usuarios/${userId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
+  // ── Vault zero-knowledge ─────────────────────────────────────────────────
+  getVaultConfig: (userId) => request(`/vault/config/${userId}`),
+  postVaultConfig: (payload) =>
+    request('/vault/config', { method: 'POST', body: JSON.stringify(payload) }),
+  patchVaultConfig: (payload) =>
+    request('/vault/config', { method: 'PATCH', body: JSON.stringify(payload) }),
+  getVaultItems: (userId) => request(`/vault/items/${userId}`),
+  postVaultItem: (payload) =>
+    request('/vault/items', { method: 'POST', body: JSON.stringify(payload) }),
+  putVaultItem: (itemId, payload) =>
+    request(`/vault/items/${itemId}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteVaultItem: (itemId, userId) =>
+    request(`/vault/items/${itemId}?telegram_user_id=${userId}`, { method: 'DELETE' }),
+
   // ── Presupuesto mensual ───────────────────────────────────────────────────
   getPresupuesto: (userId) => request(`/presupuesto/${userId}`),
   postPresupuesto: (payload) =>
