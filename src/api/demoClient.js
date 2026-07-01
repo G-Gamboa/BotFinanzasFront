@@ -70,13 +70,6 @@ export function createDemoApi(demoData) {
     migrateDebtToTC:      write,
     postRegistroInvoice:  write,
 
-    // ── Betting: bloqueado en demo ───────────────────────────
-    getBets:             write,
-    postBet:             write,
-    patchBet:            write,
-    deleteBet:           write,
-    patchBettingConfig:  write,
-
     // ── Admin: bloqueado en demo ──────────────────────────────
     getAdminUsuarios:     write,
     postCrearUsuario:     write,

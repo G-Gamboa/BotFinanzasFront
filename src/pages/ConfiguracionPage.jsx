@@ -57,7 +57,6 @@ export default function ConfiguracionPage({
   canPrivate,
   isAdmin = false,
   onRefreshData,
-  onOpenTracker,
 }) {
   const [accountForm, setAccountForm] = useState(initialAccountForm)
   const [categoryForm, setCategoryForm] = useState(initialCategoryForm)
@@ -1258,31 +1257,6 @@ export default function ConfiguracionPage({
         </Panel>
       ) : null}
 
-      {isAdmin && onOpenTracker ? (
-        <div style={{ padding: '8px 0 16px' }}>
-          <button
-            onClick={onOpenTracker}
-            style={{
-              width: '100%',
-              padding: '12px',
-              background: 'transparent',
-              border: '1px solid #1A1A1A',
-              borderRadius: 8,
-              color: 'var(--text-soft)',
-              fontSize: '0.78rem',
-              letterSpacing: '.12em',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              textTransform: 'uppercase',
-              transition: 'border-color .15s, color .15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#444'; e.currentTarget.style.color = 'var(--text)' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#1A1A1A'; e.currentTarget.style.color = 'var(--text-soft)' }}
-          >
-            ◉ Tracker
-          </button>
-        </div>
-      ) : null}
     </div>
   )
 }
