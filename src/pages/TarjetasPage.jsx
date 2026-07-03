@@ -359,6 +359,31 @@ export default function TarjetasPage({
                   )}
                 </div>
 
+                {/* Desglose préstamos TC — solo visible si hay saldo de préstamos */}
+                {(tc.balance_loans_gtq ?? 0) > 0 && (
+                  <div style={{
+                    marginTop: 8, padding: '8px 10px', borderRadius: 10,
+                    background: 'color-mix(in srgb, var(--color-primary, #4f8ef7) 8%, var(--card-soft))',
+                    border: '1px solid color-mix(in srgb, var(--color-primary, #4f8ef7) 20%, transparent)',
+                    display: 'grid', gap: 4,
+                  }}>
+                    <div style={{ fontSize: '0.72rem', opacity: 0.6, marginBottom: 2 }}>
+                      Desglose del saldo
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.83rem' }}>
+                      <span>Tus gastos</span>
+                      <strong style={{ color: 'var(--color-danger, #e53935)' }}>{q(tc.balance_own_gtq ?? 0)}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.83rem' }}>
+                      <span style={{ opacity: 0.8 }}>Préstamos TC pendientes</span>
+                      <span style={{ color: 'var(--color-warning, #f59e0b)', fontWeight: 600 }}>{q(tc.balance_loans_gtq ?? 0)}</span>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', opacity: 0.55, marginTop: 2 }}>
+                      Los préstamos pendientes se abonarán cuando los cobres desde la sección Préstamos.
+                    </div>
+                  </div>
+                )}
+
                 {/* Saldo a corte */}
                 {tc.billing_close_day && (
                   <div style={{
