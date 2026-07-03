@@ -178,6 +178,15 @@ export default function TarjetasPage({
 
   async function submitTCPay(e) {
     e.preventDefault()
+    // Guard duro: no permitir abonar más de los gastos propios cuando hay préstamos TC
+    if (selectedTC && (selectedTC.balance_loans_gtq ?? 0) > 0 && !needsUsdFields) {
+      const entered = Number(tcPayForm.amount)
+      const ownBalance = selectedTC.balance_own_gtq ?? 0
+      if (entered > ownBalance) {
+        notifyErr(new Error(`El monto excede tus gastos propios (${q(ownBalance)}). Reduce el abono.`))
+        return
+      }
+    }
     setTcPaySaving(true); setMessage(''); setError('')
     try {
       const payload = {
@@ -589,7 +598,7 @@ export default function TarjetasPage({
             </label>
           )}
 
-          {/* Advertencia: monto supera gastos propios */}
+          {/* Bloqueo: monto supera gastos propios cuando hay préstamos TC */}
           {selectedTC && (selectedTC.balance_loans_gtq ?? 0) > 0 && !needsUsdFields && (() => {
             const entered = Number(tcPayForm.amount)
             const ownBalance = selectedTC.balance_own_gtq ?? 0
@@ -598,16 +607,16 @@ export default function TarjetasPage({
             return (
               <div className="full-span" style={{
                 padding: '8px 12px', borderRadius: 10, fontSize: '0.82rem',
-                background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 12%, var(--card-soft))',
-                border: '1px solid color-mix(in srgb, var(--color-warning, #f59e0b) 40%, transparent)',
+                background: 'color-mix(in srgb, var(--color-danger, #e53e3e) 10%, var(--card-soft))',
+                border: '1px solid color-mix(in srgb, var(--color-danger, #e53e3e) 40%, transparent)',
                 display: 'grid', gap: 3,
               }}>
-                <strong style={{ color: 'var(--color-warning, #f59e0b)' }}>⚠️ El monto supera tus gastos propios</strong>
+                <strong style={{ color: 'var(--color-danger, #e53e3e)' }}>No puedes abonar más de tus gastos propios</strong>
                 <span style={{ opacity: 0.85 }}>
-                  Tus gastos: <strong>{q(ownBalance)}</strong> — excedente: <strong>{q(excedente)}</strong>
+                  Máximo: <strong>{q(ownBalance)}</strong> — excedente bloqueado: <strong>{q(excedente)}</strong>
                 </span>
                 <span style={{ opacity: 0.7 }}>
-                  Los préstamos TC se abonan solos al cobrarlos desde Préstamos. Pagar el excedente ahora podría generar saldo a favor que luego quede negativo.
+                  Los préstamos TC ({q(selectedTC.balance_loans_gtq)}) se abonan automáticamente al cobrarlos desde Préstamos. Si pagas ese monto ahora, el saldo quedará negativo.
                 </span>
               </div>
             )
@@ -644,7 +653,12 @@ export default function TarjetasPage({
           <div className="full-span form-actions">
             <button
               className="primary-btn" type="submit"
-              disabled={tcPaySaving || !userId || !tcPayForm.creditCardAccountId || !tcPayForm.amount || (needsUsdFields && !tcPayForm.amountUsd)}
+              disabled={
+                tcPaySaving || !userId || !tcPayForm.creditCardAccountId || !tcPayForm.amount ||
+                (needsUsdFields && !tcPayForm.amountUsd) ||
+                (selectedTC && (selectedTC.balance_loans_gtq ?? 0) > 0 && !needsUsdFields &&
+                  Number(tcPayForm.amount) > (selectedTC.balance_own_gtq ?? 0))
+              }
             >
               {tcPaySaving ? 'Guardando...' : 'Registrar abono'}
             </button>
