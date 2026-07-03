@@ -494,13 +494,13 @@ export default function TarjetasPage({
 
           {/* Info de saldo según TC */}
           {selectedTC && (
-            <div className="full-span" style={{ fontSize: '0.82rem', display: 'grid', gap: 3 }}>
+            <div className="full-span" style={{ fontSize: '0.82rem', display: 'grid', gap: 4 }}>
               {selectedTC.tc_type === 'GTQ' && (
-                <span style={{ opacity: 0.7 }}>Saldo: <strong>{q(selectedTC.balance)}</strong></span>
+                <span style={{ opacity: 0.7 }}>Saldo total: <strong>{q(selectedTC.balance)}</strong></span>
               )}
               {selectedTC.tc_type === 'USD' && (
                 <span style={{ opacity: 0.7 }}>
-                  Saldo: <strong>{usd(selectedTC.balance)}</strong>
+                  Saldo total: <strong>{usd(selectedTC.balance)}</strong>
                   <span style={{ opacity: 0.6 }}> ≈ {q(selectedTC.balance_gtq)}</span>
                 </span>
               )}
@@ -508,6 +508,24 @@ export default function TarjetasPage({
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                   <span style={{ opacity: 0.7 }}>Q: <strong>{q(selectedTC.balance_gtq_portion ?? 0)}</strong></span>
                   <span style={{ opacity: 0.7 }}>$: <strong>{usd(selectedTC.balance_usd_portion ?? 0)}</strong></span>
+                </div>
+              )}
+              {/* Desglose préstamos TC en el formulario de abono */}
+              {(selectedTC.balance_loans_gtq ?? 0) > 0 && (
+                <div style={{
+                  marginTop: 2, padding: '6px 10px', borderRadius: 8,
+                  background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 10%, var(--card-soft))',
+                  border: '1px solid color-mix(in srgb, var(--color-warning, #f59e0b) 30%, transparent)',
+                  display: 'grid', gap: 2,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Tus gastos (recomendado abonar)</span>
+                    <strong style={{ color: 'var(--color-danger, #e53935)' }}>{q(selectedTC.balance_own_gtq ?? 0)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', opacity: 0.75 }}>
+                    <span>Préstamos TC pendientes</span>
+                    <span>{q(selectedTC.balance_loans_gtq ?? 0)}</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -570,6 +588,30 @@ export default function TarjetasPage({
               />
             </label>
           )}
+
+          {/* Advertencia: monto supera gastos propios */}
+          {selectedTC && (selectedTC.balance_loans_gtq ?? 0) > 0 && !needsUsdFields && (() => {
+            const entered = Number(tcPayForm.amount)
+            const ownBalance = selectedTC.balance_own_gtq ?? 0
+            if (!entered || entered <= ownBalance) return null
+            const excedente = entered - ownBalance
+            return (
+              <div className="full-span" style={{
+                padding: '8px 12px', borderRadius: 10, fontSize: '0.82rem',
+                background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 12%, var(--card-soft))',
+                border: '1px solid color-mix(in srgb, var(--color-warning, #f59e0b) 40%, transparent)',
+                display: 'grid', gap: 3,
+              }}>
+                <strong style={{ color: 'var(--color-warning, #f59e0b)' }}>⚠️ El monto supera tus gastos propios</strong>
+                <span style={{ opacity: 0.85 }}>
+                  Tus gastos: <strong>{q(ownBalance)}</strong> — excedente: <strong>{q(excedente)}</strong>
+                </span>
+                <span style={{ opacity: 0.7 }}>
+                  Los préstamos TC se abonan solos al cobrarlos desde Préstamos. Pagar el excedente ahora podría generar saldo a favor que luego quede negativo.
+                </span>
+              </div>
+            )
+          })()}
 
           <label>
             <span>Fecha</span>
