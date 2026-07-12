@@ -558,6 +558,7 @@ export default function App() {
               installmentPlans={installmentPlans?.items || []}
               catalogos={catalogos}
               disponibles={disponibles}
+              loanPeople={loanPeopleAdmin?.items || []}
               onRefreshData={isGuest ? () => {} : () => loadAllData({ invalidateFinancial: true })}
             />
           )}

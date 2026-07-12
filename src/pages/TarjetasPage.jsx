@@ -66,6 +66,9 @@ const initialInstallPlanForm = {
   purchaseDate: getGuatemalaDateString(),
   firstChargeDate: getGuatemalaDateString(),
   note: '',
+  isLoan: false,
+  loanPersonId: '',
+  categoryId: '',
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -77,6 +80,7 @@ export default function TarjetasPage({
   installmentPlans = [],
   catalogos,
   disponibles,
+  loanPeople = [],
   onRefreshData,
 }) {
   const [tcPayForm, setTcPayForm]         = useState(initialTCPayForm)
@@ -96,6 +100,8 @@ export default function TarjetasPage({
 
   const liquidAccounts = useMemo(() => disponibles?.saldos_liquidos || [], [disponibles])
   const ccCatalog      = useMemo(() => catalogos?.accounts?.credit_cards || [], [catalogos])
+  const egrCategories  = useMemo(() => catalogos?.categories?.egr || [], [catalogos])
+  const activeLoanPeople = useMemo(() => loanPeople.filter((p) => p.is_active !== false), [loanPeople])
 
   const selectedTC = useMemo(
     () => tcBalances.find((tc) => String(tc.id) === String(tcPayForm.creditCardAccountId)),
@@ -170,6 +176,10 @@ export default function TarjetasPage({
         const count = Number(field === 'totalInstallments' ? value : next.totalInstallments)
         if (total > 0 && count > 0) next.monthlyAmount = (total / count).toFixed(2)
       }
+      if (field === 'isLoan') {
+        next.loanPersonId = ''
+        next.categoryId = ''
+      }
       return next
     })
   }
@@ -231,6 +241,11 @@ export default function TarjetasPage({
         purchase_date: installPlanForm.purchaseDate,
         first_charge_date: installPlanForm.firstChargeDate,
         note: installPlanForm.note || null,
+        is_loan: installPlanForm.isLoan,
+        loan_person_id: installPlanForm.isLoan && installPlanForm.loanPersonId
+          ? Number(installPlanForm.loanPersonId) : null,
+        category_id: !installPlanForm.isLoan && installPlanForm.categoryId
+          ? Number(installPlanForm.categoryId) : null,
       })
       notify('Plan de cuotas creado.')
       setInstallPlanForm({ ...initialInstallPlanForm, purchaseDate: getGuatemalaDateString(), firstChargeDate: getGuatemalaDateString() })
@@ -685,6 +700,14 @@ export default function TarjetasPage({
                     <span>Cuota {q(plan.monthly_amount)}</span>
                     <span>{plan.paid_installments}/{plan.total_installments}</span>
                     {plan.next_charge_date && <span>Próx. {fmtDate(plan.next_charge_date)}</span>}
+                    {plan.is_loan && (
+                      <span style={{ color: 'var(--color-warning, #f59e0b)', fontWeight: 600 }}>
+                        Préstamo TC{plan.loan_person_name ? ` · ${plan.loan_person_name}` : ''}
+                      </span>
+                    )}
+                    {!plan.is_loan && plan.category_name && (
+                      <span style={{ opacity: 0.7 }}>{plan.category_name}</span>
+                    )}
                   </div>
                   <div style={{ marginTop: 8 }}>
                     <ProgressBar value={plan.paid_installments} max={plan.total_installments} danger={95} warn={70} />
@@ -797,10 +820,56 @@ export default function TarjetasPage({
               />
             </label>
 
+            <label className="full-span" style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={installPlanForm.isLoan}
+                onChange={(e) => updateInstallPlan('isLoan', e.target.checked)}
+                style={{ width: 16, height: 16, flexShrink: 0 }}
+              />
+              <span style={{ fontSize: '0.88rem' }}>
+                Plan de préstamo TC <span style={{ opacity: 0.65 }}>(cada cuota genera un préstamo a tercero en vez de gasto propio)</span>
+              </span>
+            </label>
+
+            {installPlanForm.isLoan && (
+              <label className="full-span">
+                <span>Persona</span>
+                <select
+                  value={installPlanForm.loanPersonId}
+                  onChange={(e) => updateInstallPlan('loanPersonId', e.target.value)}
+                  required
+                >
+                  <option value="">Selecciona persona</option>
+                  {activeLoanPeople.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {!installPlanForm.isLoan && (
+              <label className="full-span">
+                <span>Categoría de egreso <span style={{ opacity: 0.55 }}>(opcional)</span></span>
+                <select
+                  value={installPlanForm.categoryId}
+                  onChange={(e) => updateInstallPlan('categoryId', e.target.value)}
+                >
+                  <option value="">Sin categoría</option>
+                  {egrCategories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+
             <div className="full-span form-actions">
               <button
                 className="primary-btn" type="submit"
-                disabled={installPlanSaving || !userId || !installPlanForm.creditCardAccountId}
+                disabled={
+                  installPlanSaving || !userId || !installPlanForm.creditCardAccountId ||
+                  (installPlanForm.isLoan && !installPlanForm.loanPersonId)
+                }
               >
                 {installPlanSaving ? 'Guardando...' : 'Crear plan'}
               </button>
