@@ -323,14 +323,14 @@ export default function TarjetasPage({
             const vcBalance = tc.visacuota_remaining ?? tc.visacuota_balance ?? 0
             const vcLimit   = tc.visacuotas_limit  ?? null
 
-            // Disponible general (en moneda nativa de la TC)
+            // Disponible general (en moneda nativa de la TC); negativo = sobrepasado
             const availGeneral = nativeLimit != null
-              ? Math.max(0, nativeLimit - nativeBalance)
+              ? nativeLimit - nativeBalance
               : null
 
-            // Disponible Visacuotas
+            // Disponible Visacuotas; negativo = sobrepasado
             const availVC = vcLimit != null
-              ? Math.max(0, vcLimit - vcBalance)
+              ? vcLimit - vcBalance
               : null
 
             return (
