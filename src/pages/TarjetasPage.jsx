@@ -134,6 +134,16 @@ export default function TarjetasPage({
     [installmentPlans],
   )
 
+  // Auto-corregir accountName cuando liquidAccounts carga y el valor actual no existe en la lista
+  useEffect(() => {
+    if (liquidAccounts.length === 0) return
+    setTcPayForm((prev) => {
+      const isValid = liquidAccounts.some((a) => a.cuenta === prev.accountName)
+      if (isValid) return prev
+      return { ...prev, accountName: liquidAccounts[0].cuenta }
+    })
+  }, [liquidAccounts])
+
   // ── TC history fetch ──────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -647,7 +657,8 @@ export default function TarjetasPage({
 
           <label>
             <span>Pagar desde</span>
-            <select value={tcPayForm.accountName} onChange={(e) => updateTCPay('accountName', e.target.value)}>
+            <select value={tcPayForm.accountName} onChange={(e) => updateTCPay('accountName', e.target.value)} required>
+              {liquidAccounts.length === 0 && <option value="">Sin cuentas con saldo</option>}
               {liquidAccounts.map((item) => (
                 <option key={item.cuenta} value={item.cuenta}>
                   {item.cuenta} · {q(item.saldo)}
