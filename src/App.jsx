@@ -234,6 +234,7 @@ export default function App() {
         cacheSet('preferencias',     userId, preferenciasData)
         cacheSet('tcBalances',       userId, tcBalancesData)
         cacheSet('installmentPlans', userId, installmentPlansData)
+        cacheSet('presupuesto',      userId, presupuestoData)
 
         // ── Paso 4: generar cargos automáticos de visacuotas vencidos ────────
         try {
