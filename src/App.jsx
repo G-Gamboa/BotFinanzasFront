@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import BirthdayPage from './pages/BirthdayPage'
 import Layout from './components/Layout'
 import NavTabs from './components/NavTabs'
 import MessageBanner from './components/MessageBanner'
@@ -102,6 +103,15 @@ export default function App() {
   const [autoChargesNotice, setAutoChargesNotice] = useState('')
 
   const userId = tgUserId || manualUserId
+
+  // Birthday surprise: show only to her, only on Nov 12 Guatemala time
+  if (String(userId) === '5592032215') {
+    const gt = new Date(Date.now() - 6 * 3600000)
+    if (gt.getUTCMonth() === 10 && gt.getUTCDate() === 12) {
+      return <BirthdayPage />
+    }
+  }
+
   const canPrivate = Boolean(catalogos?.user?.can_use_private_palettes)
   const palette = useMemo(
     () => getPaletteByKey(preferencias?.theme_key, canPrivate),
