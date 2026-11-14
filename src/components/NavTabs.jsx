@@ -6,15 +6,17 @@ export const TAB_LABELS = {
   tarjetas:    'Tarjetas',
   deudas:      'Deudas y préstamos',
   presupuesto: 'Presupuesto',
+  cumple:      'Cumpleaños',
 }
 
-export function availableTabKeys({ showCalendario = true, showTarjetas = false, showPresupuesto = false } = {}) {
+export function availableTabKeys({ showCalendario = true, showTarjetas = false, showPresupuesto = false, showCumple = false } = {}) {
   const keys = ['movimientos']
   if (showCalendario) keys.push('calendario')
   keys.push('historial', 'dashboard')
   if (showTarjetas) keys.push('tarjetas')
   keys.push('deudas')
   if (showPresupuesto) keys.push('presupuesto')
+  if (showCumple) keys.push('cumple')
   return keys
 }
 

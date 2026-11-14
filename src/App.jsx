@@ -12,6 +12,7 @@ import HistorialPage from './pages/HistorialPage'
 import TarjetasPage from './pages/TarjetasPage'
 import PresupuestoPage from './pages/PresupuestoPage'
 import CalendarioPage from './pages/CalendarioPage'
+import BirthdayPage from './pages/BirthdayPage'
 import { api } from './api/client'
 import { createDemoApi } from './api/demoClient'
 import {
@@ -49,6 +50,9 @@ const demoBoot = {
   presupuesto:      { items: [] },
   calendario:       null,
 }
+
+// Única cuenta que ve la pestaña con los mensajes de cumpleaños
+const BIRTHDAY_USER_ID = '5592032215'
 
 // Pestañas que cambiaron de nombre o se fusionaron
 const TAB_ALIASES = { prestamos: 'deudas', vault: 'movimientos' }
@@ -124,15 +128,17 @@ export default function App() {
   const canUseTarjetas    = (tcBalances?.items?.length ?? 0) > 0
   const canUsePresupuesto = !isGuest
   const canUseCalendario  = !isGuest
+  const showCumple        = String(userId) === BIRTHDAY_USER_ID
 
   const tabs = useMemo(
     () => buildTabs({
       showCalendario: canUseCalendario,
       showTarjetas: canUseTarjetas,
       showPresupuesto: canUsePresupuesto,
+      showCumple,
       tabOrder: preferencias?.tab_order,
     }),
-    [canUseCalendario, canUseTarjetas, canUsePresupuesto, preferencias?.tab_order]
+    [canUseCalendario, canUseTarjetas, canUsePresupuesto, showCumple, preferencias?.tab_order]
   )
 
   useEffect(() => {
@@ -433,6 +439,8 @@ export default function App() {
               onRefreshData={refresh}
             />
           )}
+
+          {activeTab === 'cumple' && showCumple && <BirthdayPage />}
 
           {activeTab === 'presupuesto' && canUsePresupuesto && (
             <PresupuestoPage
