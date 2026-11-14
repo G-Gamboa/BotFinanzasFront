@@ -1,34 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import BirthdayPage from './pages/BirthdayPage'
 import Layout from './components/Layout'
-import NavTabs from './components/NavTabs'
+import NavTabs, { buildTabs } from './components/NavTabs'
 import MessageBanner from './components/MessageBanner'
+import Icon from './components/Icons'
+import GuestBanner from './components/GuestBanner'
 import DashboardPage from './pages/DashboardPage'
 import MovimientosPage from './pages/MovimientosPage'
 import DeudasPage from './pages/DeudasPage'
-import PrestamosPage from './pages/PrestamosPage'
 import ConfiguracionPage from './pages/ConfiguracionPage'
-import { api, getTelegramInitData } from './api/client'
+import HistorialPage from './pages/HistorialPage'
+import TarjetasPage from './pages/TarjetasPage'
+import PresupuestoPage from './pages/PresupuestoPage'
+import CalendarioPage from './pages/CalendarioPage'
+import { api } from './api/client'
 import { createDemoApi } from './api/demoClient'
 import {
   demoCatalogos, demoDashboard, demoDisponibles, demoDeudas,
   demoHistorial, demoTcBalances, demoPreferencias,
 } from './data/demoData'
-import {
-  cacheSet,
-  cacheReadAll,
-  cacheInvalidateAll,
-  cacheInvalidateFinancial,
-} from './lib/cache'
+import { cacheReadBoot, cacheWriteBoot } from './lib/cache'
 import { useTelegramMiniApp } from './hooks/useTelegramMiniApp'
 import { useWebSocket } from './hooks/useWebSocket'
+import { getTelegramInitData } from './api/client'
 import { getPaletteByKey } from './theme'
 import { applyTheme } from './theme/applyTheme'
-import HistorialPage from './pages/HistorialPage'
-import TarjetasPage from './pages/TarjetasPage'
-import GuestBanner from './components/GuestBanner'
-import PresupuestoPage from './pages/PresupuestoPage'
-import VaultPage from './pages/VaultPage'
 
 const demoApi = createDemoApi({
   catalogos:    demoCatalogos,
@@ -39,6 +34,24 @@ const demoApi = createDemoApi({
   tcBalances:   demoTcBalances,
   preferencias: demoPreferencias,
 })
+
+const demoBoot = {
+  catalogos:        demoCatalogos,
+  dashboard:        demoDashboard,
+  disponibles:      demoDisponibles,
+  deudas:           demoDeudas,
+  cuentas:          { items: demoCatalogos.accounts },
+  categorias:       { items: demoCatalogos.categories },
+  loanPeople:       { items: [] },
+  preferencias:     demoPreferencias,
+  tcBalances:       demoTcBalances,
+  installmentPlans: { items: [] },
+  presupuesto:      { items: [] },
+  calendario:       null,
+}
+
+// Pestañas que cambiaron de nombre o se fusionaron
+const TAB_ALIASES = { prestamos: 'deudas', vault: 'movimientos' }
 
 function normalizeUserLabel(user) {
   if (!user) return ''
@@ -75,42 +88,30 @@ export default function App() {
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [health, setHealth] = useState(null)
 
-  // Guest / registration state
   const [isGuest, setIsGuest] = useState(false)
   const [daysRemaining, setDaysRemaining] = useState(null)
   const [registerLoading, setRegisterLoading] = useState(false)
   const [registerError, setRegisterError] = useState('')
   const [starsPrice, setStarsPrice] = useState(100)
 
-  // Evita lanzar dos revalidaciones simultáneas (ej. visibilitychange + mount)
-  const fetchingRef = useRef(false)
-  // Timestamp de la última vez que se trajo data fresca del servidor
-  const lastFetchRef = useRef(0)
-
-  const [catalogos, setCatalogos] = useState(null)
-  const [dashboard, setDashboard] = useState(null)
-  const [disponibles, setDisponibles] = useState(null)
-  const [deudas, setDeudas] = useState(null)
-  const [cuentasAdmin, setCuentasAdmin] = useState(null)
-  const [categoriasAdmin, setCategoriasAdmin] = useState(null)
-  const [loanPeopleAdmin, setLoanPeopleAdmin] = useState(null)
-  const [preferencias, setPreferencias] = useState(null)
-  const [tcBalances, setTcBalances] = useState(null)
-  const [installmentPlans, setInstallmentPlans] = useState(null)
-  const [presupuesto, setPresupuesto] = useState(null)
+  const [boot, setBoot] = useState(null)
   const [autoChargesNotice, setAutoChargesNotice] = useState('')
+
+  const fetchingRef = useRef(false)
+  const pendingRef = useRef(false)
+  const hasDataRef = useRef(false)
+  const lastFetchRef = useRef(0)
 
   const userId = tgUserId || manualUserId
 
-  // Birthday surprise: show only to her, only on Nov 12 Guatemala time
-  if (String(userId) === '5592032215') {
-    const gt = new Date(Date.now() - 6 * 3600000)
-    if (gt.getUTCMonth() === 10 && gt.getUTCDate() === 12) {
-      return <BirthdayPage />
-    }
-  }
+  const catalogos        = boot?.catalogos || null
+  const dashboard        = boot?.dashboard || null
+  const disponibles      = boot?.disponibles || null
+  const deudas           = boot?.deudas || null
+  const preferencias     = boot?.preferencias || null
+  const tcBalances       = boot?.tcBalances || null
+  const installmentPlans = boot?.installmentPlans || null
 
   const canPrivate = Boolean(catalogos?.user?.can_use_private_palettes)
   const palette = useMemo(
@@ -122,191 +123,100 @@ export default function App() {
   const canUsePrestamos   = Boolean(catalogos?.user?.can_use_loans)
   const canUseTarjetas    = (tcBalances?.items?.length ?? 0) > 0
   const canUsePresupuesto = !isGuest
+  const canUseCalendario  = !isGuest
+
+  const tabs = useMemo(
+    () => buildTabs({
+      showCalendario: canUseCalendario,
+      showTarjetas: canUseTarjetas,
+      showPresupuesto: canUsePresupuesto,
+      tabOrder: preferencias?.tab_order,
+    }),
+    [canUseCalendario, canUseTarjetas, canUsePresupuesto, preferencias?.tab_order]
+  )
 
   useEffect(() => {
     applyTheme(palette)
   }, [palette])
 
-  const loadAllData = useCallback(
-    async ({ invalidateFinancial = false, invalidateAll = false } = {}) => {
-      if (!userId) return
-      if (fetchingRef.current) return
+  const loadAllData = useCallback(async () => {
+    if (!userId) return
+    if (fetchingRef.current) {
+      // Hay una carga en curso que pudo empezar antes del cambio: se repite al terminar.
+      pendingRef.current = true
+      return
+    }
+    fetchingRef.current = true
 
-      // Invalida caché según el tipo de mutación antes de aplicar el stale
-      if (invalidateAll) cacheInvalidateAll(userId)
-      else if (invalidateFinancial) cacheInvalidateFinancial(userId)
+    if (!hasDataRef.current) {
+      const cached = cacheReadBoot(userId)
+      if (cached) {
+        setBoot(cached)
+        hasDataRef.current = true
+      } else {
+        setLoading(true)
+      }
+    }
+    setError('')
 
-      // ── Paso 1: mostrar datos cacheados al instante ────────────────────────
-      const cached = cacheReadAll(userId)
-      const hasCached = Object.values(cached).some((v) => v !== null)
+    try {
+      const fresh = await api.getBootstrap(userId)
 
-      if (hasCached) {
-        if (cached.catalogos)        setCatalogos(cached.catalogos)
-        if (cached.dashboard)        setDashboard(cached.dashboard)
-        if (cached.disponibles)      setDisponibles(cached.disponibles)
-        if (cached.deudas)           setDeudas(cached.deudas)
-        if (cached.cuentas)          setCuentasAdmin(cached.cuentas)
-        if (cached.categorias)       setCategoriasAdmin(cached.categorias)
-        if (cached.loanPeople)       setLoanPeopleAdmin(cached.loanPeople)
-        if (cached.preferencias)     setPreferencias(cached.preferencias)
-        if (cached.tcBalances)       setTcBalances(cached.tcBalances)
-        if (cached.installmentPlans) setInstallmentPlans(cached.installmentPlans)
+      if (!fresh.registered) {
+        setIsGuest(true)
+        setDaysRemaining(fresh.days_remaining ?? null)
+        setBoot(demoBoot)
+        hasDataRef.current = true
+        return
       }
 
-      // ── Paso 0: verificar si el usuario está registrado ───────────────────
-      // Solo aplica en contexto Telegram (hay initData). En dev, se omite.
-      if (getTelegramInitData()) {
-        try {
-          const status = await api.getRegistrationStatus()
-          if (!status.registered) {
-            // Modo demo: carga datos ficticios y muestra toda la app
-            setIsGuest(true)
-            setDaysRemaining(status.days_remaining ?? null)
-            setCatalogos(demoCatalogos)
-            setDashboard(demoDashboard)
-            setDisponibles(demoDisponibles)
-            setDeudas(demoDeudas)
-            setCuentasAdmin({ items: demoCatalogos.accounts })
-            setCategoriasAdmin({ items: demoCatalogos.categories })
-            setLoanPeopleAdmin({ items: [] })
-            setPreferencias(demoPreferencias)
-            setTcBalances(demoTcBalances)
-            setInstallmentPlans({ items: [] })
-            setLoading(false)
-            fetchingRef.current = false
-            return
-          }
-          setIsGuest(false)
-          setDaysRemaining(status.days_remaining ?? null)
-        } catch {
-          // Si falla (ej. error de red), continuar con el flujo normal
-        }
+      setIsGuest(false)
+      setDaysRemaining(fresh.days_remaining ?? null)
+      setBoot(fresh)
+      hasDataRef.current = true
+      cacheWriteBoot(userId, fresh)
+      lastFetchRef.current = Date.now()
+
+      if (fresh.auto_charges > 0) {
+        setAutoChargesNotice(`${fresh.auto_charges} cargo(s) de Visacuotas generados automáticamente.`)
       }
-
-      // Solo muestra spinner si no hay nada en caché (primera vez)
-      if (!hasCached) setLoading(true)
-      setError('')
-      fetchingRef.current = true
-
-      // ── Paso 2: traer datos frescos en segundo plano ───────────────────────
-      try {
-        const [
-          healthData,
-          catalogosData,
-          dashboardData,
-          disponiblesData,
-          deudasData,
-          cuentasData,
-          categoriasData,
-          loanPeopleData,
-          preferenciasData,
-          tcBalancesData,
-          installmentPlansData,
-          presupuestoData,
-        ] = await Promise.all([
-          api.getHealth(),
-          api.getCatalogos(userId),
-          api.getDashboard(userId),
-          api.getDisponibles(userId),
-          api.getDeudas(userId),
-          api.getCuentas(userId),
-          api.getCategoriasAdmin(userId),
-          api.getLoanPeopleAdmin(userId),
-          api.getPreferencias(userId),
-          api.getTCBalances(userId),
-          api.getInstallmentPlans(userId),
-          api.getPresupuesto(userId),
-        ])
-
-        setHealth(healthData)
-        setCatalogos(catalogosData)
-        setDashboard(dashboardData)
-        setDisponibles(disponiblesData)
-        setDeudas(deudasData)
-        setCuentasAdmin(cuentasData)
-        setCategoriasAdmin(categoriasData)
-        setLoanPeopleAdmin(loanPeopleData)
-        setPreferencias(preferenciasData)
-        setTcBalances(tcBalancesData)
-        setInstallmentPlans(installmentPlansData)
-        setPresupuesto(presupuestoData)
-
-        lastFetchRef.current = Date.now()
-
-        // ── Paso 3: persistir datos frescos al caché ─────────────────────────
-        cacheSet('catalogos',        userId, catalogosData)
-        cacheSet('dashboard',        userId, dashboardData)
-        cacheSet('disponibles',      userId, disponiblesData)
-        cacheSet('deudas',           userId, deudasData)
-        cacheSet('cuentas',          userId, cuentasData)
-        cacheSet('categorias',       userId, categoriasData)
-        cacheSet('loanPeople',       userId, loanPeopleData)
-        cacheSet('preferencias',     userId, preferenciasData)
-        cacheSet('tcBalances',       userId, tcBalancesData)
-        cacheSet('installmentPlans', userId, installmentPlansData)
-        cacheSet('presupuesto',      userId, presupuestoData)
-
-        // ── Paso 4: generar cargos automáticos de visacuotas vencidos ────────
-        try {
-          const pendingResult = await api.processPendingCharges(userId)
-          if (pendingResult?.total_created > 0) {
-            setAutoChargesNotice(
-              `${pendingResult.total_created} cargo(s) de Visacuotas generados automáticamente.`
-            )
-            // Actualizar planes y balances TC tras auto-cargo
-            const [freshPlans, freshTC] = await Promise.all([
-              api.getInstallmentPlans(userId),
-              api.getTCBalances(userId),
-            ])
-            setInstallmentPlans(freshPlans)
-            setTcBalances(freshTC)
-            cacheSet('installmentPlans', userId, freshPlans)
-            cacheSet('tcBalances',       userId, freshTC)
-          }
-        } catch {
-          // Silencioso: el auto-cargo no bloquea la carga principal
-        }
-      } catch (err) {
-        // Si había caché, el usuario ya tiene datos; no mostrar error en pantalla
-        if (!hasCached) setError(err.message || 'No pude cargar la información.')
-      } finally {
-        setLoading(false)
-        fetchingRef.current = false
+    } catch (err) {
+      // Con datos en pantalla, un fallo de red no debe taparlos con un error
+      if (!hasDataRef.current) setError(err.message || 'No pude cargar la información.')
+    } finally {
+      setLoading(false)
+      fetchingRef.current = false
+      if (pendingRef.current) {
+        pendingRef.current = false
+        loadAllData()
       }
-    },
-    [userId]
-  )
+    }
+  }, [userId])
 
   useEffect(() => {
     if (!isReady) return
     loadAllData()
   }, [isReady, userId])
 
-  // Revalidar cuando el usuario vuelve a la app (Telegram Mini App backgrounded)
-  // Mínimo 60 s entre revalidaciones silenciosas para no saturar la API.
+  // Revalidar al volver a la app, con un mínimo de 60 s entre cargas silenciosas
   useEffect(() => {
     if (!isReady || !userId) return
 
     function handleVisibility() {
       if (document.visibilityState !== 'visible') return
-      const secondsSinceFetch = (Date.now() - lastFetchRef.current) / 1000
-      if (secondsSinceFetch > 60) {
-        loadAllData()
-      }
+      if ((Date.now() - lastFetchRef.current) / 1000 > 60) loadAllData()
     }
 
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [isReady, userId, loadAllData])
 
-  // ── WebSocket: sincronización en tiempo real ────────────────────────────────
   const wsInitData = getTelegramInitData()
   useWebSocket(
     isGuest ? null : userId,
     wsInitData || null,
     useCallback((msg) => {
-      if (msg?.event !== 'invalidate') return
-      loadAllData({ invalidateFinancial: msg.scope !== 'all', invalidateAll: msg.scope === 'all' })
+      if (msg?.event === 'invalidate') loadAllData()
     }, [loadAllData]),
   )
 
@@ -314,19 +224,23 @@ export default function App() {
     if (!preferencias || prefsApplied) return
 
     setShowAmounts(Boolean(preferencias.show_amounts_default))
-
     const prefTab = preferencias.default_tab || 'movimientos'
-    const safeTab = prefTab === 'prestamos' && !canUsePrestamos ? 'movimientos' : prefTab
-    setActiveTab(safeTab)
-
+    setActiveTab(TAB_ALIASES[prefTab] || prefTab)
     setPrefsApplied(true)
-  }, [preferencias, prefsApplied, canUsePrestamos])
+  }, [preferencias, prefsApplied])
+
+  // Si la pestaña activa deja de existir (ej. sin tarjetas), vuelve a la primera
+  useEffect(() => {
+    if (tabs.length && !tabs.some((t) => t.key === activeTab)) setActiveTab(tabs[0].key)
+  }, [tabs, activeTab])
 
   useEffect(() => {
     setPrefsApplied(false)
     setIsGuest(false)
     setDaysRemaining(null)
     setRegisterError('')
+    setBoot(null)
+    hasDataRef.current = false
   }, [userId])
 
   async function handleRegister() {
@@ -338,7 +252,6 @@ export default function App() {
 
       const tg = window?.Telegram?.WebApp
       if (!tg?.openInvoice) {
-        // Fallback: open in browser (should not happen inside Telegram)
         window.open(invoice_link, '_blank')
         setRegisterError('Pago abierto en el navegador. Vuelve después de completarlo.')
         return
@@ -346,8 +259,8 @@ export default function App() {
 
       tg.openInvoice(invoice_link, (status) => {
         if (status === 'paid') {
-          // Payment confirmed by Telegram — reload data (webhook will have created the user)
-          setTimeout(() => loadAllData({ invalidateAll: true }), 1500)
+          // El webhook crea al usuario; se espera un momento antes de recargar
+          setTimeout(() => loadAllData(), 1500)
         } else if (status === 'cancelled') {
           setRegisterError('Pago cancelado.')
         } else if (status === 'failed') {
@@ -361,54 +274,8 @@ export default function App() {
     }
   }
 
-  const ccAlerts = useMemo(() => {
-    const items = tcBalances?.items || []
-    if (!items.length) return []
-
-    const now = new Date()
-    const gt = new Date(now.toLocaleString('en-US', { timeZone: 'America/Guatemala' }))
-    const todayDay = gt.getDate()
-
-    const fiveLater = new Date(gt)
-    fiveLater.setDate(gt.getDate() + 5)
-    const fiveDay = fiveLater.getDate()
-
-    const oneLater = new Date(gt)
-    oneLater.setDate(gt.getDate() + 1)
-    const oneDay = oneLater.getDate()
-
-    const fmt = (amount) =>
-      `Q${Number(amount ?? 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-
-    const alerts = []
-    for (const tc of items) {
-      // Alerta de corte: hoy es el día de corte → muestra balance_at_close (lo que cerró hoy)
-      if (tc.billing_close_day && todayDay === tc.billing_close_day) {
-        const amount = tc.balance_at_close_gtq ?? tc.balance_gtq ?? 0
-        if (amount > 0) alerts.push({ type: 'corte', card: tc.name, amount: fmt(amount) })
-      }
-      // Alerta de pago: faltan 5 días
-      if (tc.payment_due_day && fiveDay === tc.payment_due_day) {
-        const amount = tc.pending_to_pay_gtq ?? tc.balance_gtq ?? 0
-        if (amount > 0) alerts.push({ type: 'pago', card: tc.name, amount: fmt(amount) })
-      }
-      // Alerta de pago: falta 1 día (recordatorio urgente)
-      if (tc.payment_due_day && oneDay === tc.payment_due_day) {
-        const amount = tc.pending_to_pay_gtq ?? tc.balance_gtq ?? 0
-        if (amount > 0) alerts.push({ type: 'pago_urgente', card: tc.name, amount: fmt(amount) })
-      }
-    }
-    return alerts
-  }, [tcBalances])
-
-  const deudasActivas = useMemo(() => {
-    const items = deudas?.items || []
-    return items.filter(
-      (item) =>
-        (item.status || '').toLowerCase() === 'active' &&
-        Number(item.pending_installments || 0) > 0
-    )
-  }, [deudas])
+  const pageApi = isGuest ? demoApi : api
+  const refresh = isGuest ? () => {} : loadAllData
 
   return (
     <Layout
@@ -440,86 +307,35 @@ export default function App() {
               <span>User ID</span>
               <input value={manualUserId} onChange={(e) => setManualUserId(e.target.value)} />
             </label>
-            <button className="primary-btn" onClick={() => loadAllData({ invalidateAll: true })}>Cargar</button>
+            <button className="primary-btn" onClick={() => loadAllData()}>Cargar</button>
           </div>
         </section>
       )}
 
       {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
-      {autoChargesNotice ? (
-        <MessageBanner kind="success">{autoChargesNotice}</MessageBanner>
-      ) : null}
-      {!loading && health && health.ok === false ? (
-        <MessageBanner kind="error">La API no respondió correctamente.</MessageBanner>
-      ) : null}
+      {autoChargesNotice ? <MessageBanner kind="success">{autoChargesNotice}</MessageBanner> : null}
 
-      {/* Aviso de suscripción próxima a vencer (≤ 3 días, usuario registrado) */}
       {!isGuest && daysRemaining !== null && daysRemaining <= 3 ? (
-        <div style={{
-          background: 'color-mix(in srgb, var(--color-danger, #e53e3e) 12%, var(--card-soft))',
-          border: '1.5px solid color-mix(in srgb, var(--color-danger, #e53e3e) 35%, transparent)',
-          borderRadius: '16px',
-          padding: '14px 16px',
-          marginBottom: '14px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-        }}>
-          <div style={{ fontSize: '0.84rem', lineHeight: 1.4 }}>
-            {daysRemaining === 0
-              ? '⏰ Tu suscripción vence hoy.'
-              : `⏰ Tu suscripción vence en ${daysRemaining} día${daysRemaining !== 1 ? 's' : ''}.`}
-            {' '}Renueva para no perder el acceso.
+        <div className="notice notice-danger">
+          <div className="notice-text">
+            <Icon name="clock" size={18} />
+            <span>
+              {daysRemaining === 0
+                ? 'Tu suscripción vence hoy.'
+                : `Tu suscripción vence en ${daysRemaining} día${daysRemaining !== 1 ? 's' : ''}.`}
+              {' '}Renueva para no perder el acceso.
+            </span>
           </div>
-          <button
-            className="primary-btn"
-            style={{ fontSize: '0.84rem', padding: '0.5rem' }}
-            onClick={handleRegister}
-            disabled={registerLoading}
-          >
-            {registerLoading ? 'Procesando…' : '⭐ Renovar suscripción'}
+          <button className="primary-btn" onClick={handleRegister} disabled={registerLoading}>
+            {registerLoading ? 'Procesando…' : 'Renovar suscripción'}
           </button>
         </div>
       ) : null}
 
-      {/* Alertas de tarjeta de crédito: corte y vencimiento próximo */}
-      {!isGuest && ccAlerts.map((alert, i) => (
-        <div key={i} style={{
-          background: alert.type === 'corte'
-            ? 'color-mix(in srgb, var(--color-primary, #4f8ef7) 12%, var(--card-soft))'
-            : alert.type === 'pago_urgente'
-              ? 'color-mix(in srgb, #e53935 12%, var(--card-soft))'
-              : 'color-mix(in srgb, #f59e0b 12%, var(--card-soft))',
-          border: `1.5px solid ${alert.type === 'corte'
-            ? 'color-mix(in srgb, var(--color-primary, #4f8ef7) 35%, transparent)'
-            : alert.type === 'pago_urgente'
-              ? 'color-mix(in srgb, #e53935 50%, transparent)'
-              : 'color-mix(in srgb, #f59e0b 40%, transparent)'}`,
-          borderRadius: '16px',
-          padding: '12px 16px',
-          marginBottom: '10px',
-          fontSize: '0.84rem',
-          lineHeight: 1.4,
-        }}>
-          {alert.type === 'corte'
-            ? `✂️ Hoy es fecha de corte de ${alert.card} — Saldo: ${alert.amount}`
-            : alert.type === 'pago_urgente'
-              ? `⚠️ Mañana vence el pago de ${alert.card} — Saldo: ${alert.amount}`
-              : `📅 Quedan 5 días para pagar ${alert.card} — Saldo: ${alert.amount}`}
-        </div>
-      ))}
-
-      {/* Banner de modo demo — visible solo para guests, encima de toda la app */}
       {isGuest ? (
         <>
-          <GuestBanner
-            onRegister={handleRegister}
-            loading={registerLoading}
-            starsPrice={starsPrice}
-          />
-          {registerError ? (
-            <MessageBanner kind="error">{registerError}</MessageBanner>
-          ) : null}
+          <GuestBanner onRegister={handleRegister} loading={registerLoading} starsPrice={starsPrice} />
+          {registerError ? <MessageBanner kind="error">{registerError}</MessageBanner> : null}
         </>
       ) : null}
 
@@ -527,94 +343,94 @@ export default function App() {
         <ConfiguracionPage
           userId={userId}
           api={api}
-          cuentas={cuentasAdmin}
-          categorias={categoriasAdmin}
-          loanPeople={loanPeopleAdmin}
+          cuentas={boot?.cuentas}
+          categorias={boot?.categorias}
+          loanPeople={boot?.loanPeople}
           deudas={deudas}
           preferencias={preferencias}
           canUsePrestamos={canUsePrestamos}
           canUseTarjetas={canUseTarjetas}
           canPrivate={canPrivate}
           isAdmin={Boolean(catalogos?.user?.is_admin)}
-          onRefreshData={() => loadAllData({ invalidateAll: true })}
+          onRefreshData={loadAllData}
         />
       ) : (
         <>
-          <NavTabs
-            current={activeTab}
-            onChange={setActiveTab}
-            showPrestamos={canUsePrestamos}
-            showTarjetas={canUseTarjetas}
-            showPresupuesto={canUsePresupuesto}
-            tabOrder={preferencias?.tab_order}
-          />
+          <NavTabs tabs={tabs} current={activeTab} onChange={setActiveTab} />
 
           {activeTab === 'movimientos' && (
             <MovimientosPage
               userId={userId}
-              api={isGuest ? demoApi : api}
+              api={pageApi}
               catalogos={catalogos}
               disponibles={disponibles}
               dashboard={dashboard}
               savingsGoals={dashboard?.savings_goals || []}
-              onRefreshData={isGuest ? () => {} : () => loadAllData({ invalidateFinancial: true })}
+              showAmounts={showAmounts}
+              onRefreshData={refresh}
             />
           )}
 
-          {activeTab === 'tarjetas' && canUseTarjetas && (
-            <TarjetasPage
+          {activeTab === 'calendario' && canUseCalendario && (
+            <CalendarioPage
               userId={userId}
-              api={isGuest ? demoApi : api}
-              tcBalances={tcBalances?.items || []}
-              installmentPlans={installmentPlans?.items || []}
+              api={api}
+              calendario={boot?.calendario}
               catalogos={catalogos}
               disponibles={disponibles}
-              loanPeople={loanPeopleAdmin?.items || []}
-              onRefreshData={isGuest ? () => {} : () => loadAllData({ invalidateFinancial: true })}
-            />
-          )}
-
-          {activeTab === 'deudas' && (
-            <DeudasPage
-              userId={userId}
-              api={isGuest ? demoApi : api}
-              disponibles={disponibles}
-              deudas={deudas}
-              onRefreshData={isGuest ? () => {} : () => loadAllData({ invalidateFinancial: true })}
-            />
-          )}
-
-          {activeTab === 'dashboard' && (
-            <DashboardPage
-              userId={userId}
-              api={isGuest ? demoApi : api}
-              loading={loading}
-              palette={palette}
-              dashboard={dashboard}
-              showAmounts={showAmounts}
               tcBalances={tcBalances?.items || []}
+              showAmounts={showAmounts}
+              loading={loading}
+              onRefreshData={refresh}
             />
           )}
 
           {activeTab === 'historial' && (
             <HistorialPage
               userId={userId}
-              api={isGuest ? demoApi : api}
-              categorias={categoriasAdmin}
+              api={pageApi}
+              categorias={boot?.categorias}
               catalogos={catalogos}
               disponibles={disponibles}
               tcBalances={tcBalances?.items || []}
-              onRefreshData={isGuest ? () => {} : () => loadAllData({ invalidateFinancial: true })}
+              showAmounts={showAmounts}
+              onRefreshData={refresh}
             />
           )}
 
-          {activeTab === 'prestamos' && canUsePrestamos && (
-            <PrestamosPage
+          {activeTab === 'dashboard' && (
+            <DashboardPage
+              loading={loading}
+              dashboard={dashboard}
+              deudas={deudas}
+              tcBalances={tcBalances?.items || []}
+              showAmounts={showAmounts}
+            />
+          )}
+
+          {activeTab === 'tarjetas' && canUseTarjetas && (
+            <TarjetasPage
               userId={userId}
-              api={isGuest ? demoApi : api}
+              api={pageApi}
+              tcBalances={tcBalances?.items || []}
+              installmentPlans={installmentPlans?.items || []}
               catalogos={catalogos}
               disponibles={disponibles}
-              onRefreshData={isGuest ? () => {} : () => loadAllData({ invalidateFinancial: true })}
+              loanPeople={boot?.loanPeople?.items || []}
+              onRefreshData={refresh}
+            />
+          )}
+
+          {activeTab === 'deudas' && (
+            <DeudasPage
+              userId={userId}
+              api={pageApi}
+              catalogos={catalogos}
+              disponibles={disponibles}
+              deudas={deudas}
+              prestamos={dashboard?.prestamos_resumen}
+              canUsePrestamos={canUsePrestamos}
+              onRefreshData={refresh}
             />
           )}
 
@@ -622,16 +438,10 @@ export default function App() {
             <PresupuestoPage
               userId={userId}
               api={api}
-              presupuesto={presupuesto}
-              categorias={categoriasAdmin}
-              onRefreshData={() => loadAllData({ invalidateFinancial: true })}
-            />
-          )}
-
-          {activeTab === 'vault' && !isGuest && (
-            <VaultPage
-              userId={userId}
-              api={api}
+              presupuesto={boot?.presupuesto}
+              categorias={boot?.categorias}
+              resumenMes={dashboard?.resumen_mes}
+              onRefreshData={loadAllData}
             />
           )}
         </>

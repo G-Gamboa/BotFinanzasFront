@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Icon from '../components/Icons'
 import {
   deriveKEK, unwrapDEK, wrapDEK,
   encryptItem, decryptItem,
@@ -90,7 +91,7 @@ function ItemCard({ item, onEdit, onDelete }) {
             <span style={{ flex: 1, wordBreak: 'break-all' }}>{item.username}</span>
             <button className="ghost-btn" style={{ fontSize: '0.75rem', padding: '2px 8px', flexShrink: 0 }}
               onClick={() => copyToClipboard(item.username, 'username')}>
-              {copied === 'username' ? '✓' : 'Copiar'}
+              {copied === 'username' ? 'Copiado' : 'Copiar'}
             </button>
           </div>
         )}
@@ -106,7 +107,7 @@ function ItemCard({ item, onEdit, onDelete }) {
           </button>
           <button className="ghost-btn" style={{ fontSize: '0.75rem', padding: '2px 8px', flexShrink: 0 }}
             onClick={() => copyToClipboard(item.password, 'password')}>
-            {copied === 'password' ? '✓' : 'Copiar'}
+            {copied === 'password' ? 'Copiado' : 'Copiar'}
           </button>
         </div>
 
@@ -370,7 +371,7 @@ export default function VaultPage({ userId, api }) {
     return (
       <div>
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-          <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🔐</div>
+          <div style={{ marginBottom: '8px', color: 'var(--primary-soft)' }}><Icon name="lock" size={36} /></div>
           <h2 style={{ margin: '0 0 6px', fontSize: '1.1rem' }}>Crear bóveda segura</h2>
           <p style={{ margin: 0, fontSize: '0.83rem', color: 'var(--text-secondary, #666)', lineHeight: 1.5 }}>
             Tus contraseñas se cifran en tu dispositivo antes de enviarse al servidor.
@@ -402,7 +403,7 @@ export default function VaultPage({ userId, api }) {
     return (
       <div>
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-          <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🔒</div>
+          <div style={{ marginBottom: '8px', color: 'var(--primary-soft)' }}><Icon name="lock" size={36} /></div>
           <h2 style={{ margin: '0 0 6px', fontSize: '1.1rem' }}>Bóveda bloqueada</h2>
           <p style={{ margin: 0, fontSize: '0.83rem', color: 'var(--text-secondary, #666)' }}>
             Ingresa tu contraseña maestra para desbloquear.
@@ -433,7 +434,7 @@ export default function VaultPage({ userId, api }) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-        <h2 style={{ margin: 0, fontSize: '1.1rem' }}>🔓 Bóveda</h2>
+        <h2 className="title-with-icon" style={{ margin: 0, fontSize: '1.1rem' }}><Icon name="unlock" size={18} /> Bóveda</h2>
         <div style={{ display: 'flex', gap: '6px' }}>
           <button className="ghost-btn" style={{ fontSize: '0.78rem', padding: '4px 10px' }}
             onClick={() => { setShowChangePass(v => !v); setShowForm(false); setFormError('') }}>

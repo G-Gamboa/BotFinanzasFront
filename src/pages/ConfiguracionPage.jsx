@@ -1,3 +1,5 @@
+import VaultPage from './VaultPage'
+import { TAB_LABELS, availableTabKeys } from '../components/NavTabs'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
@@ -35,14 +37,8 @@ const initialLoanPersonForm = { name: '' }
 const initialDebtForm = { name: '', creditor: '', due_date: '', installment_amount: '', total_installments: '', payment_frequency: 'monthly' }
 const initialGoalForm = { name: '', target_amount: '', account_name: '' }
 
-const ALL_TAB_LABELS = {
-  movimientos: 'Movimientos',
-  historial:   'Historial',
-  deudas:      'Deudas',
-  dashboard:   'Dashboard',
-  prestamos:   'Préstamos',
-  tarjetas:    'TC',
-}
+
+const ALL_TAB_LABELS = TAB_LABELS
 
 export default function ConfiguracionPage({
   userId,
@@ -116,13 +112,7 @@ export default function ConfiguracionPage({
 
   // Mirror NavTabs logic: build ordered list of available tab keys
   const availableTabs = useMemo(() => {
-    const tabs = ['movimientos', 'historial', 'deudas', 'dashboard']
-    if (canUsePrestamos) tabs.splice(1, 0, 'prestamos')
-    if (canUseTarjetas) {
-      const deudasIdx = tabs.indexOf('deudas')
-      tabs.splice(deudasIdx, 0, 'tarjetas')
-    }
-    return tabs
+    return availableTabKeys({ showCalendario: true, showTarjetas: canUseTarjetas, showPresupuesto: true })
   }, [canUsePrestamos, canUseTarjetas])
 
   const visibleCategories = useMemo(
@@ -581,7 +571,7 @@ export default function ConfiguracionPage({
         username: newUserForm.username.trim() || null,
         can_use_loans: newUserForm.can_use_loans,
       })
-      setMessage(`✅ Usuario creado. ID interno: ${result.id} · Telegram ID: ${result.telegram_user_id}`)
+      setMessage(`Usuario creado. ID interno: ${result.id} · Telegram ID: ${result.telegram_user_id}`)
       setNewUserForm({ telegram_user_id: '', first_name: '', last_name: '', username: '', can_use_loans: false })
       loadAdminUsers()
     } catch (err) {
@@ -1056,11 +1046,9 @@ export default function ConfiguracionPage({
               value={prefsForm.defaultTab}
               onChange={(e) => setPrefsForm((p) => ({ ...p, defaultTab: e.target.value }))}
             >
-              <option value="movimientos">Movimientos</option>
-              <option value="deudas">Deudas</option>
-              <option value="dashboard">Dashboard</option>
-              <option value="historial">Historial</option>
-              {canUsePrestamos ? <option value="prestamos">Préstamos</option> : null}
+{availableTabs.map((key) => (
+                <option key={key} value={key}>{TAB_LABELS[key]}</option>
+              ))}
             </select>
           </label>
 
@@ -1141,7 +1129,7 @@ export default function ConfiguracionPage({
       </Panel>
 
       {isAdmin ? (
-        <Panel title="👥 Usuarios">
+        <Panel title="Usuarios">
           {adminUsers === null ? (
             <div style={{ color: 'var(--text-soft)', fontSize: '0.9rem' }}>Cargando usuarios…</div>
           ) : adminUsers.length === 0 ? (
@@ -1195,7 +1183,7 @@ export default function ConfiguracionPage({
       ) : null}
 
       {isAdmin ? (
-        <Panel title="👤 Crear usuario">
+        <Panel title="Crear usuario">
           <form className="form-grid" onSubmit={submitNewUser}>
             <label>
               <span>Telegram User ID</span>
@@ -1256,6 +1244,10 @@ export default function ConfiguracionPage({
           </form>
         </Panel>
       ) : null}
+
+      <section className="panel">
+        <VaultPage userId={userId} api={api} />
+      </section>
 
     </div>
   )

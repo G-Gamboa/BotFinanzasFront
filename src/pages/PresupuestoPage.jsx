@@ -71,7 +71,7 @@ function BudgetCard({ item, onEdit, onDelete }) {
   )
 }
 
-export default function PresupuestoPage({ userId, api, presupuesto, categorias, onRefreshData }) {
+export default function PresupuestoPage({ userId, api, presupuesto, categorias, resumenMes, onRefreshData }) {
   const [showForm, setShowForm] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [formAmount, setFormAmount] = useState('')
@@ -79,6 +79,7 @@ export default function PresupuestoPage({ userId, api, presupuesto, categorias, 
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState({ kind: '', text: '' })
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [openCategory, setOpenCategory] = useState(null)
 
   const items = presupuesto?.items || []
 
@@ -88,6 +89,15 @@ export default function PresupuestoPage({ userId, api, presupuesto, categorias, 
   }, [categorias])
 
   const usedCategoryIds = useMemo(() => new Set(items.map((i) => i.category_id)), [items])
+
+  // Categorías con gasto este mes que no tienen presupuesto asignado
+  const unbudgeted = useMemo(() => {
+    const budgeted = new Set(items.map((i) => i.category_name))
+    return Object.entries(resumenMes?.gastos_por_categoria || {})
+      .filter(([name]) => !budgeted.has(name))
+      .map(([name, amount]) => ({ name, amount: Number(amount) }))
+      .sort((a, b) => b.amount - a.amount)
+  }, [items, resumenMes])
 
   const availableCategories = useMemo(
     () => egrCategories.filter((c) => !usedCategoryIds.has(c.id)),
@@ -288,6 +298,36 @@ export default function PresupuestoPage({ userId, api, presupuesto, categorias, 
           />
         ))
       )}
+
+      {unbudgeted.length > 0 ? (
+        <div className="panel" style={{ marginTop: '4px' }}>
+          <div className="panel-head">
+            <h2>Gasto del mes sin presupuesto</h2>
+            <strong>{fmt(unbudgeted.reduce((sum, c) => sum + c.amount, 0))}</strong>
+          </div>
+          <div className="rows">
+            {unbudgeted.map((c) => (
+              <div key={c.name}>
+                <button type="button" className="row-line" aria-expanded={openCategory === c.name}
+                  onClick={() => setOpenCategory((prev) => (prev === c.name ? null : c.name))}>
+                  <span>{c.name}</span>
+                  <strong>{fmt(c.amount)}</strong>
+                </button>
+                {openCategory === c.name ? (
+                  <div className="rows" style={{ margin: '6px 0 6px 12px' }}>
+                    {((resumenMes?.detalle_por_categoria || {})[c.name] || []).map((d) => (
+                      <div key={`${d.record_type}-${d.id}`} className="row-line sub">
+                        <span>{d.date.split('-').reverse().join('/')} · {d.note || 'Sin nota'}</span>
+                        <strong>{fmt(d.amount)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {items.length > 0 && !showForm && availableCategories.length === 0 && egrCategories.length > 0 && (
         <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #666)', textAlign: 'center', marginTop: '8px' }}>

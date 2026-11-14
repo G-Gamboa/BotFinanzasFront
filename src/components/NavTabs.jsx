@@ -1,47 +1,37 @@
-const baseTabs = [
-  { key: 'movimientos', label: 'Movimientos' },
-  { key: 'historial',   label: 'Historial' },
-  { key: 'deudas',      label: 'Deudas' },
-  { key: 'dashboard',   label: 'Dashboard' },
-]
+export const TAB_LABELS = {
+  movimientos: 'Registrar',
+  calendario:  'Calendario',
+  historial:   'Historial',
+  dashboard:   'Resumen',
+  tarjetas:    'Tarjetas',
+  deudas:      'Deudas y préstamos',
+  presupuesto: 'Presupuesto',
+}
 
-export default function NavTabs({
-  current,
-  onChange,
-  showPrestamos  = false,
-  showTarjetas   = false,
-  showPresupuesto = false,
-  tabOrder       = null,
-}) {
-  // Construir lista de tabs disponibles
-  let tabs = [...baseTabs]
+export function availableTabKeys({ showCalendario = true, showTarjetas = false, showPresupuesto = false } = {}) {
+  const keys = ['movimientos']
+  if (showCalendario) keys.push('calendario')
+  keys.push('historial', 'dashboard')
+  if (showTarjetas) keys.push('tarjetas')
+  keys.push('deudas')
+  if (showPresupuesto) keys.push('presupuesto')
+  return keys
+}
 
-  if (showPrestamos) {
-    tabs.splice(1, 0, { key: 'prestamos', label: 'Préstamos' })
-  }
-  if (showTarjetas) {
-    const deudasIdx = tabs.findIndex((t) => t.key === 'deudas')
-    tabs.splice(deudasIdx, 0, { key: 'tarjetas', label: 'TC' })
-  }
-  if (showPresupuesto) {
-    tabs.push({ key: 'presupuesto', label: 'Presupuesto' })
-  }
-  tabs.push({ key: 'vault', label: 'Bóveda' })
+export function buildTabs({ tabOrder = null, ...flags } = {}) {
+  const available = availableTabKeys(flags)
+  let keys = available
 
-  // Aplicar orden personalizado si existe
   if (tabOrder && tabOrder.length > 0) {
-    const ordered = []
-    for (const key of tabOrder) {
-      const tab = tabs.find((t) => t.key === key)
-      if (tab) ordered.push(tab)
-    }
-    // Tabs disponibles que no estaban en el orden guardado van al final
-    for (const tab of tabs) {
-      if (!ordered.find((t) => t.key === tab.key)) ordered.push(tab)
-    }
-    tabs = ordered
+    // El orden guardado manda; las pestañas nuevas que no estaban van al final
+    const ordered = tabOrder.filter((k) => available.includes(k))
+    keys = [...ordered, ...available.filter((k) => !ordered.includes(k))]
   }
 
+  return keys.map((key) => ({ key, label: TAB_LABELS[key] }))
+}
+
+export default function NavTabs({ tabs, current, onChange }) {
   return (
     <nav className="tabs">
       {tabs.map((tab) => (

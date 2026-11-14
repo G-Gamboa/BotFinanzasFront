@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
 import EmptyState from '../components/EmptyState'
+import { q } from '../lib/format'
 
 const PAGE_SIZE = 15
 
@@ -47,7 +48,7 @@ function getOrigenText(item) {
 }
 
 export default function HistorialPage({
-  userId, api, categorias, catalogos, disponibles, tcBalances = [], onRefreshData,
+  userId, api, categorias, catalogos, disponibles, tcBalances = [], showAmounts = true, onRefreshData,
 }) {
   const [items, setItems] = useState([])
   const [totalCount, setTotalCount] = useState(0)
@@ -59,6 +60,8 @@ export default function HistorialPage({
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [savingEdit, setSavingEdit] = useState(false)
+  const [rangeSummary, setRangeSummary] = useState(null)
+  const [openCategory, setOpenCategory] = useState(null)
 
   const categoriasItems = useMemo(() => categorias?.items || [], [categorias])
   const creditCards = useMemo(() => catalogos?.accounts?.credit_cards || [], [catalogos])
@@ -91,6 +94,14 @@ export default function HistorialPage({
       })
       setItems(data.items || [])
       setTotalCount(data.total_count ?? data.total ?? 0)
+      // Con un rango de fechas completo se muestran también sus totales
+      if (currentFilters.date_from && currentFilters.date_to && api.getPeriodoResumen) {
+        api.getPeriodoResumen(userId, { date_from: currentFilters.date_from, date_to: currentFilters.date_to })
+          .then((summary) => setRangeSummary(summary))
+          .catch(() => setRangeSummary(null))
+      } else {
+        setRangeSummary(null)
+      }
     } catch (err) {
       setError(err.message || 'No pude cargar el historial.')
     } finally {
@@ -370,6 +381,39 @@ export default function HistorialPage({
         </form>
       </Panel>
 
+      {rangeSummary ? (
+        <Panel title="Totales del rango">
+          <div className="trio">
+            <div><span>Ingresos</span><strong className="pos">{q(rangeSummary.ingresos, showAmounts)}</strong></div>
+            <div><span>Egresos</span><strong className="neg">{q(rangeSummary.egresos, showAmounts)}</strong></div>
+            <div><span>Balance</span><strong>{q(rangeSummary.balance, showAmounts)}</strong></div>
+          </div>
+          <div className="rows">
+            {Object.entries(rangeSummary.gastos_por_categoria || {})
+              .sort((a, b) => Number(b[1]) - Number(a[1]))
+              .map(([cat, monto]) => (
+                <div key={cat}>
+                  <button type="button" className="row-line" aria-expanded={openCategory === cat}
+                    onClick={() => setOpenCategory((prev) => (prev === cat ? null : cat))}>
+                    <span>{cat}</span>
+                    <strong>{q(monto, showAmounts)}</strong>
+                  </button>
+                  {openCategory === cat ? (
+                    <div className="rows" style={{ margin: '6px 0 6px 12px' }}>
+                      {((rangeSummary.detalle_por_categoria || {})[cat] || []).map((item) => (
+                        <div key={`${item.record_type}-${item.id}`} className="row-line sub">
+                          <span>{fmtDate(item.date)} · {item.note || 'Sin nota'}</span>
+                          <strong>{q(item.amount, showAmounts)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+          </div>
+        </Panel>
+      ) : null}
+
       <Panel title="Resultados">
         {loading ? <div>Cargando...</div> : null}
 
@@ -384,7 +428,7 @@ export default function HistorialPage({
               onClick={() => goToPage(page - 1)}
               disabled={page === 0 || loading}
             >
-              ←
+              Anterior
             </button>
             <span className="pagination-info">
               Página {page + 1} de {Math.ceil(totalCount / PAGE_SIZE)} · {totalCount} regs
@@ -394,14 +438,14 @@ export default function HistorialPage({
               onClick={() => goToPage(page + 1)}
               disabled={(page + 1) * PAGE_SIZE >= totalCount || loading}
             >
-              →
+              Siguiente
             </button>
           </div>
         )}
 
         <div className="history-list">
           {items.map((item) => (
-            <div key={item.id} className={`history-card${item.is_void ? ' history-card-void' : ''}`}>
+            <div key={`${item.record_type}-${item.id}`} className={`history-card${item.is_void ? ' history-card-void' : ''}`}>
               <div className="history-row history-row-top">
                 <div className="history-top-left">
                   <strong>{fmtDate(item.movement_date)}</strong>

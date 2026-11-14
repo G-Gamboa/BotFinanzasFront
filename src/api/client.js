@@ -45,6 +45,28 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  getBootstrap: (userId) => request(`/bootstrap/${userId}`),
+
+  // ── Calendario ───────────────────────────────────────────────────────────
+  getCalendario: (userId, year, month) =>
+    request(`/calendario/${userId}?year=${year}&month=${month}`),
+  postProgramado: (payload) =>
+    request('/calendario/items', { method: 'POST', body: JSON.stringify(payload) }),
+  patchProgramado: (itemId, payload) =>
+    request(`/calendario/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteProgramado: (itemId, userId) =>
+    request(`/calendario/items/${itemId}?telegram_user_id=${userId}`, { method: 'DELETE' }),
+  patchOcurrencia: (payload) =>
+    request('/calendario/ocurrencia', { method: 'PATCH', body: JSON.stringify(payload) }),
+  confirmarProgramado: (payload) =>
+    request('/calendario/confirmar', { method: 'POST', body: JSON.stringify(payload) }),
+  confirmarCuotaDeuda: (payload) =>
+    request('/calendario/confirmar-deuda', { method: 'POST', body: JSON.stringify(payload) }),
+  postNotaCalendario: (payload) =>
+    request('/calendario/notas', { method: 'POST', body: JSON.stringify(payload) }),
+  deleteNotaCalendario: (noteId, userId) =>
+    request(`/calendario/notas/${noteId}?telegram_user_id=${userId}`, { method: 'DELETE' }),
+
   getHealth: () => request('/health'),
   getCatalogos: (userId) => request(`/catalogos/${userId}`),
   getDisponibles: (userId) => request(`/disponibles/${userId}`),

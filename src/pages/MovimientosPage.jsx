@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
 import { getGuatemalaDateString } from '../utils/dates'
+import { q } from '../lib/format'
 
 const initialForm = {
   movementType: 'EGR',
@@ -27,7 +28,7 @@ const initialForm = {
   savingsGoalId: '',
 }
 
-export default function MovimientosPage({ userId, api, catalogos, disponibles, dashboard, savingsGoals = [], onRefreshData }) {
+export default function MovimientosPage({ userId, api, catalogos, disponibles, dashboard, savingsGoals = [], showAmounts = true, onRefreshData }) {
   const [form, setForm] = useState(initialForm)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -443,6 +444,20 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
 
   return (
     <div className="grid-page single-col">
+      {saldosLiquidos.length > 0 ? (
+        <section className="panel compact-panel">
+          <p className="hero-label">Disponible</p>
+          <p className="hero-num" style={{ fontSize: '1.7rem', marginBottom: 8 }}>
+            {q(saldosLiquidos.reduce((sum, item) => sum + Number(item.saldo || 0), 0), showAmounts)}
+          </p>
+          <div className="selected-meta-row">
+            {saldosLiquidos.map((item) => (
+              <span key={item.cuenta} className="mini-chip">{item.cuenta} · {q(item.saldo, showAmounts)}</span>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <Panel title="Nuevo movimiento">
         {message ? <MessageBanner kind="success">{message}</MessageBanner> : null}
         {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
@@ -576,7 +591,6 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                   <option value="NORMAL">Normal</option>
                   <option value="AHORRO">Ahorro</option>
                   <option value="INVERSION">Inversión</option>
-                  {catalogos?.user?.can_use_loans ? <option value="PRESTAMO">Préstamo</option> : null}
                 </select>
               </label>
 
@@ -815,56 +829,6 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
                 </>
               )}
 
-              {form.movSubtype === 'PRESTAMO' && catalogos?.user?.can_use_loans && (
-                <>
-                  <label>
-                    <span>Acción</span>
-                    <select value={form.movDirection} onChange={(e) => updateField('movDirection', e.target.value)}>
-                      <option value="DAR">Dar</option>
-                      <option value="COBRAR">Cobrar</option>
-                    </select>
-                  </label>
-
-                  <label>
-                    <span>Persona</span>
-                    <select value={form.loanPersonName} onChange={(e) => updateField('loanPersonName', e.target.value)}>
-                      {loanPeople.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  </label>
-
-                  {form.movDirection === 'DAR' ? (
-                    <>
-                      <label>
-                        <span>Cuenta origen</span>
-                        <select value={form.sourceAccountName} onChange={(e) => updateField('sourceAccountName', e.target.value)}>
-                          {liquidAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
-                        </select>
-                      </label>
-
-                      {form.sourceAccountName ? (
-                        <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -8 }}>
-                          Disp. Q {getSaldoDisponible(form.sourceAccountName).toFixed(2)}
-                        </small>
-                      ) : null}
-                    </>
-                  ) : (
-                    <>
-                      <label>
-                        <span>Cuenta destino</span>
-                        <select value={form.targetAccountName} onChange={(e) => updateField('targetAccountName', e.target.value)}>
-                          {liquidAccounts.map((item) => <option key={item} value={item}>{item}</option>)}
-                        </select>
-                      </label>
-
-                      {form.loanPersonName ? (
-                        <small className="full-span" style={{ opacity: 0.6, fontSize: '0.78rem', marginTop: -8 }}>
-                          Cobrable Q {getPrestamoDisponible(form.loanPersonName).toFixed(2)}
-                        </small>
-                      ) : null}
-                    </>
-                  )}
-                </>
-              )}
             </>
           )}
 

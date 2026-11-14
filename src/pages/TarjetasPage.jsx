@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import Panel from '../components/Panel'
-import EmptyState from '../components/EmptyState'
 import MessageBanner from '../components/MessageBanner'
+import Sheet from '../components/Sheet'
+import Icon from '../components/Icons'
 import { getGuatemalaDateString } from '../utils/dates'
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -92,9 +93,8 @@ export default function TarjetasPage({
   const [message, setMessage] = useState('')
   const [error, setError]     = useState('')
 
-  // TC history
-  const [tcHistory, setTcHistory]       = useState([])
-  const [historyLoading, setHistoryLoading] = useState(false)
+  const [payOpen, setPayOpen] = useState(false)
+  const [payError, setPayError] = useState('')
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
@@ -144,21 +144,6 @@ export default function TarjetasPage({
     })
   }, [liquidAccounts])
 
-  // ── TC history fetch ──────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!userId) return
-    setHistoryLoading(true)
-    api.getHistorial(userId, { limit: 50 })
-      .then((res) => {
-        const items = (res?.items || [])
-          .filter((i) => i.payment_method === 'credit_card')
-          .slice(0, 5)
-        setTcHistory(items)
-      })
-      .catch(() => {})
-      .finally(() => setHistoryLoading(false))
-  }, [userId])
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -203,11 +188,11 @@ export default function TarjetasPage({
       const entered = Number(tcPayForm.amount)
       const ownBalance = selectedTC.balance_own_gtq ?? 0
       if (entered > ownBalance) {
-        notifyErr(new Error(`El monto excede tus gastos propios (${q(ownBalance)}). Reduce el abono.`))
+        setPayError(`El monto excede tus gastos propios (${q(ownBalance)}). Reduce el abono.`)
         return
       }
     }
-    setTcPaySaving(true); setMessage(''); setError('')
+    setTcPaySaving(true); setMessage(''); setError(''); setPayError('')
     try {
       const payload = {
         telegram_user_id: Number(userId),
@@ -222,14 +207,11 @@ export default function TarjetasPage({
       }
       await api.postTCPayment(payload)
       notify('Abono registrado correctamente.')
+      setPayOpen(false)
       setTcPayForm({ ...initialTCPayForm, paymentDate: getGuatemalaDateString() })
       onRefreshData?.()
-      // Refrescar historial local
-      api.getHistorial(userId, { limit: 50 }).then((res) => {
-        setTcHistory((res?.items || []).filter((i) => i.payment_method === 'credit_card').slice(0, 5))
-      }).catch(() => {})
     } catch (err) {
-      notifyErr(err)
+      setPayError(err.message || String(err))
     } finally {
       setTcPaySaving(false)
     }
@@ -347,7 +329,7 @@ export default function TarjetasPage({
               <div key={tc.id} className="tc-card">
                 {/* Cabecera */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                  <strong>💳 {tc.name}</strong>
+                  <strong className="title-with-icon"><Icon name="card" /> {tc.name}</strong>
                   <span className="tc-type-badge">
                     {isUSD ? 'USD' : isMX ? 'Mixta Q/$' : 'GTQ'}
                   </span>
@@ -413,7 +395,7 @@ export default function TarjetasPage({
                       <span style={{ color: 'var(--color-warning, #f59e0b)', fontWeight: 600 }}>{q(tc.balance_loans_gtq ?? 0)}</span>
                     </div>
                     <div style={{ fontSize: '0.72rem', opacity: 0.55, marginTop: 2 }}>
-                      Los préstamos pendientes se abonarán cuando los cobres desde la sección Préstamos.
+                      Los préstamos pendientes se abonan cuando los cobras desde Deudas y préstamos.
                     </div>
                   </div>
                 )}
@@ -496,10 +478,24 @@ export default function TarjetasPage({
                 {/* Fechas */}
                 {(tc.billing_close_day || tc.payment_due_day) && (
                   <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: '0.78rem', opacity: 0.65 }}>
-                    {tc.billing_close_day && <span>✂️ Corte día {tc.billing_close_day}</span>}
-                    {tc.payment_due_day   && <span>📅 Pago día {tc.payment_due_day}</span>}
+                    {tc.billing_close_day && <span>Corte día {tc.billing_close_day}</span>}
+                    {tc.payment_due_day   && <span>Pago día {tc.payment_due_day}</span>}
                   </div>
                 )}
+
+                <div className="item-actions" style={{ marginTop: 10 }}>
+                  <button
+                    type="button"
+                    className="confirm-btn"
+                    onClick={() => {
+                      setTcPayForm({ ...initialTCPayForm, paymentDate: getGuatemalaDateString(), creditCardAccountId: String(tc.id), accountName: liquidAccounts[0]?.cuenta || 'Efectivo' })
+                      setPayError('')
+                      setPayOpen(true)
+                    }}
+                  >
+                    Abonar
+                  </button>
+                </div>
               </div>
             )
           })}
@@ -507,25 +503,10 @@ export default function TarjetasPage({
       </Panel>
 
       {/* ── Abonar a tarjeta ── */}
-      <Panel title="Abonar a tarjeta">
+      {payOpen ? (
+      <Sheet title={`Abonar a ${selectedTC?.name || 'tarjeta'}`} onClose={() => setPayOpen(false)}>
+        {payError ? <MessageBanner kind="error">{payError}</MessageBanner> : null}
         <form className="form-grid" onSubmit={submitTCPay}>
-          <label>
-            <span>Tarjeta</span>
-            <select
-              value={tcPayForm.creditCardAccountId}
-              onChange={(e) => updateTCPay('creditCardAccountId', e.target.value)}
-              required
-            >
-              <option value="">Selecciona tarjeta</option>
-              {tcBalances.map((tc) => (
-                <option key={tc.id} value={tc.id}>
-                  {tc.name}
-                  {tc.tc_type === 'USD' ? ' — USD' : tc.tc_type === 'MIXTO' ? ' — Mixta' : ' — GTQ'}
-                </option>
-              ))}
-            </select>
-          </label>
-
           {/* Info de saldo según TC */}
           {selectedTC && (
             <div className="full-span" style={{ fontSize: '0.82rem', display: 'grid', gap: 4 }}>
@@ -641,7 +622,7 @@ export default function TarjetasPage({
                   Máximo: <strong>{q(ownBalance)}</strong> — excedente bloqueado: <strong>{q(excedente)}</strong>
                 </span>
                 <span style={{ opacity: 0.7 }}>
-                  Los préstamos TC ({q(selectedTC.balance_loans_gtq)}) se abonan automáticamente al cobrarlos desde Préstamos. Si pagas ese monto ahora, el saldo quedará negativo.
+                  Los préstamos TC ({q(selectedTC.balance_loans_gtq)}) se abonan automáticamente al cobrarlos desde Deudas y préstamos. Si pagas ese monto ahora, el saldo quedará negativo.
                 </span>
               </div>
             )
@@ -690,7 +671,8 @@ export default function TarjetasPage({
             </button>
           </div>
         </form>
-      </Panel>
+      </Sheet>
+      ) : null}
 
       {/* ── Visacuotas ── */}
       <Panel title="Visacuotas">
@@ -889,36 +871,6 @@ export default function TarjetasPage({
         </details>
       </Panel>
 
-      {/* ── Últimos movimientos TC ── */}
-      <Panel title="Últimos cargos en TC">
-        {historyLoading ? (
-          <p style={{ fontSize: '0.85rem', opacity: 0.6 }}>Cargando...</p>
-        ) : tcHistory.length === 0 ? (
-          <EmptyState text="Sin cargos recientes en tarjeta." />
-        ) : (
-          <div className="list-stack">
-            {tcHistory.map((item) => (
-              <div
-                key={item.id}
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '8px 0' }}
-              >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
-                  <span style={{ fontSize: '0.82rem', opacity: 0.6 }}>
-                    {fmtDate(item.date || item.movement_date)}
-                    {item.credit_card_account_name ? ` · ${item.credit_card_account_name}` : ''}
-                  </span>
-                  <span style={{ fontSize: '0.88rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {item.note || item.category || '—'}
-                  </span>
-                </div>
-                <strong style={{ fontSize: '0.93rem', color: 'var(--color-danger, #e53935)', whiteSpace: 'nowrap' }}>
-                  {q(item.amount)}
-                </strong>
-              </div>
-            ))}
-          </div>
-        )}
-      </Panel>
     </div>
   )
 }

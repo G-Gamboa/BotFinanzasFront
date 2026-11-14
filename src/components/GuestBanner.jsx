@@ -26,7 +26,7 @@ export default function GuestBanner({ onRegister, loading, starsPrice }) {
         onClick={onRegister}
         disabled={loading}
       >
-        {loading ? 'Procesando…' : `⭐ Suscribirse · ${starsPrice ?? 100} Stars`}
+        {loading ? 'Procesando…' : `Suscribirse · ${starsPrice ?? 100} Stars`}
       </button>
     </div>
   )
