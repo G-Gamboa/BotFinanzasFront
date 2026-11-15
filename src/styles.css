@@ -1613,3 +1613,23 @@ button.row-line {
   .trio { grid-template-columns: 1fr; }
   .cal-note-form { flex-direction: column; }
 }
+
+.cal-balance {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cal-balance.neg {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.sheet-alt {
+  display: grid;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}

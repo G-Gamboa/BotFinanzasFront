@@ -1,5 +1,6 @@
 import VaultPage from './VaultPage'
 import { TAB_LABELS, availableTabKeys } from '../components/NavTabs'
+import Icon from '../components/Icons'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
@@ -91,6 +92,7 @@ export default function ConfiguracionPage({
 
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [vaultOpen, setVaultOpen] = useState(false)
 
   const cuentasItems = useMemo(() => cuentas?.items || [], [cuentas])
   const categoriasItems = useMemo(() => categorias?.items || [], [categorias])
@@ -1245,8 +1247,16 @@ export default function ConfiguracionPage({
         </Panel>
       ) : null}
 
+      {/* La bóveda se monta solo al abrirla: su campo de contraseña toma el foco */}
       <section className="panel">
-        <VaultPage userId={userId} api={api} />
+        <details open={vaultOpen} onToggle={(e) => setVaultOpen(e.currentTarget.open)}>
+          <summary className="details-summary"><Icon name="lock" /> Bóveda de contraseñas</summary>
+          {vaultOpen ? (
+            <div style={{ marginTop: 14 }}>
+              <VaultPage userId={userId} api={api} />
+            </div>
+          ) : null}
+        </details>
       </section>
 
     </div>

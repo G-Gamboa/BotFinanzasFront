@@ -131,7 +131,7 @@ export default function CalendarioPage({
         await api.patchOcurrencia({
           telegram_user_id: Number(userId), item_id: row.item_id, due_date: row.date, undo: true,
         })
-        await afterChange('Recordatorio pendiente de nuevo.')
+        await afterChange('Quedó pendiente de nuevo.')
       }
     } catch (err) {
       fail(err)
@@ -170,6 +170,12 @@ export default function CalendarioPage({
   }, [data])
 
   const days = useMemo(() => Object.keys(byDay).sort(), [byDay])
+
+  const balanceByDay = useMemo(() => {
+    const map = {}
+    ;(data?.projection?.days || []).forEach((d) => { map[d.date] = d.balance })
+    return map
+  }, [data])
 
   if (!data) {
     return (
@@ -227,11 +233,12 @@ export default function CalendarioPage({
             <span className="cal-approx">≈ {q(row.amount_gtq, showAmounts)}</span>
           ) : null}
           {row.done ? (
-            row.kind === 'recordatorio' && row.source === 'scheduled' ? (
-              <button type="button" className="link-btn" onClick={() => markReminder(row, false)}>Deshacer</button>
-            ) : (
+            <>
               <span className="cal-done"><Icon name="check" size={14} /> Hecho</span>
-            )
+              {row.source === 'scheduled' && !row.record_type ? (
+                <button type="button" className="link-btn" onClick={() => markReminder(row, false)}>Deshacer</button>
+              ) : null}
+            </>
           ) : row.action ? (
             <button type="button" className="confirm-btn" onClick={() => onAction(row)}>
               {row.action === 'abonar' ? 'Abonar' : row.kind === 'recordatorio' ? 'Hecho' : 'Confirmar'}
@@ -291,6 +298,37 @@ export default function CalendarioPage({
         </section>
       ) : null}
 
+      {!summary.is_current_month && data.projection ? (
+        <section className="panel cal-summary">
+          <p className="hero-label">Saldo esperado al cierre de {monthName(view.m - 1)}</p>
+          <p className={`hero-num${data.projection.end_balance < 0 ? ' neg' : ''}`}>{q(data.projection.end_balance, showAmounts)}</p>
+          <p className="helper-text">
+            Parte de tu dinero de hoy, {q(data.projection.start_balance, showAmounts)}, y aplica todo lo planeado hasta esa fecha.
+          </p>
+        </section>
+      ) : null}
+
+      {data.projection?.first_negative ? (
+        <div className="notice notice-danger">
+          <div className="notice-text">
+            <Icon name="alert" size={18} />
+            <span>
+              Con lo planeado, tu saldo quedaría en negativo el {longDate(data.projection.first_negative, thisYear)},
+              hasta {q(data.projection.lowest.balance, showAmounts)}. Mueve un pago o adelanta un ingreso.
+            </span>
+          </div>
+        </div>
+      ) : null}
+
+      {data.close ? (
+        <CloseBlock
+          close={data.close}
+          showAmounts={showAmounts}
+          thisYear={thisYear}
+          onView={data.close.month !== view.m || data.close.year !== view.y ? () => navigate(-1) : null}
+        />
+      ) : null}
+
       {(data.cards || []).map((card) => <CardBlock key={card.id} card={card} showAmounts={showAmounts} thisYear={thisYear} />)}
 
       <section className="panel">
@@ -321,6 +359,11 @@ export default function CalendarioPage({
                 <div className="cal-day-head">
                   <h3>{capitalize(longDate(iso, thisYear))}</h3>
                   {iso === today ? <span className="pill">Hoy</span> : null}
+                  {balanceByDay[iso] != null ? (
+                    <span className={`cal-balance${balanceByDay[iso] < 0 ? ' neg' : ''}`}>
+                      Saldo esperado {q(balanceByDay[iso], showAmounts)}
+                    </span>
+                  ) : null}
                 </div>
                 <ul className="cal-rows">{byDay[iso].map(renderRow)}</ul>
               </div>
@@ -368,6 +411,54 @@ export default function CalendarioPage({
         />
       ) : null}
     </div>
+  )
+}
+
+// ── Cierre de mes ────────────────────────────────────────────────────────────
+
+function CloseBlock({ close, showAmounts, thisYear, onView }) {
+  const pending = close.unconfirmed || []
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Cierre de {monthName(close.month - 1)}{close.year !== thisYear ? ` ${close.year}` : ''}</h2>
+        {onView ? <button type="button" className="link-btn" onClick={onView}>Ver el mes</button> : null}
+      </div>
+      <div className="trio">
+        <div><span>Entró</span><strong className="pos">{q(close.ingresos, showAmounts)}</strong></div>
+        <div><span>Salió</span><strong className="neg">{q(close.egresos, showAmounts)}</strong></div>
+        <div><span>Balance</span><strong className={close.balance < 0 ? 'neg' : ''}>{q(close.balance, showAmounts)}</strong></div>
+      </div>
+      <div className="rows">
+        <div className="row-line">
+          <span>Ahorro del mes</span>
+          <strong className={close.ahorro < 0 ? 'neg' : ''}>{q(close.ahorro, showAmounts)}</strong>
+        </div>
+        {(close.top_gastos || []).map((g) => (
+          <div className="row-line sub" key={g.categoria}>
+            <span>{g.categoria}</span>
+            <strong>{q(g.monto, showAmounts)}</strong>
+          </div>
+        ))}
+      </div>
+      {pending.length > 0 ? (
+        <>
+          <p className="helper-text" style={{ margin: '12px 0 6px' }}>
+            {pending.length === 1 ? 'Quedó 1 sin confirmar:' : `Quedaron ${pending.length} sin confirmar:`}
+          </p>
+          <div className="rows">
+            {pending.map((u) => (
+              <div className="row-line sub" key={u.key}>
+                <span>{shortDate(u.date)} · {u.concept}</span>
+                <strong>{u.amount_gtq != null ? q(u.amount_gtq, showAmounts) : 'Por anotar'}</strong>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="helper-text" style={{ margin: '12px 0 0' }}>Todo lo planeado quedó confirmado.</p>
+      )}
+    </section>
   )
 }
 
@@ -467,6 +558,24 @@ function ConfirmSheet({ row, userId, api, today, liquidAccounts, creditCards, ca
       await onDone('Monto anotado.')
     } catch (err) {
       setError(err.message || 'No se pudo guardar.')
+      setSaving(false)
+    }
+  }
+
+  async function markOnly() {
+    setSaving(true); setError('')
+    try {
+      await api.confirmarProgramado({
+        telegram_user_id: Number(userId),
+        item_id: row.item_id,
+        due_date: row.date,
+        payment_date: form.date,
+        amount: form.amount ? Number(form.amount) : null,
+        create_record: false,
+      })
+      await onDone('Marcado como hecho, sin registrar otro movimiento.')
+    } catch (err) {
+      setError(err.message || 'No se pudo marcar.')
       setSaving(false)
     }
   }
@@ -583,6 +692,13 @@ function ConfirmSheet({ row, userId, api, today, liquidAccounts, creditCards, ca
           <button className="primary-btn" type="submit" disabled={saving || !form.amount}>
             {saving ? 'Guardando...' : 'Confirmar y registrar'}
           </button>
+        </div>
+
+        <div className="full-span sheet-alt">
+          <button type="button" className="ghost-btn" disabled={saving} onClick={markOnly}>
+            Confirmar sin registrar
+          </button>
+          <small className="helper-text">Úsalo si ya lo anotaste desde Registrar: lo marca como hecho y no crea otro movimiento.</small>
         </div>
       </form>
     </Sheet>
