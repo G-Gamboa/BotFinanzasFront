@@ -86,6 +86,19 @@ export default function CalendarioPage({
     fetchMonth(view.y, view.m)
   }, [key, userId, months, fetchMonth])
 
+  // Al entrar a la pestaña se pide el mes de nuevo: lo registrado en otras pestañas cuenta de inmediato
+  useEffect(() => {
+    if (userId) fetchMonth(view.y, view.m)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
+
+  async function refresh() {
+    setError('')
+    await fetchMonth(view.y, view.m)
+    onRefreshData?.()
+    setMessage('Calendario y proyección actualizados.')
+  }
+
   async function afterChange(text) {
     setMessage(text)
     setError('')
@@ -344,6 +357,8 @@ export default function CalendarioPage({
         <div className="cal-head">
           <h2>{capitalize(monthName(view.m - 1))}{view.y !== thisYear ? ` ${view.y}` : ''}</h2>
           <div className="cal-nav">
+            <button type="button" className={`icon-btn${fetching ? ' spinning' : ''}`} onClick={refresh} disabled={fetching}
+              aria-label="Actualizar calendario y proyección" title="Actualizar"><Icon name="refresh" size={18} /></button>
             <button type="button" className="icon-btn" onClick={() => navigate(-1)} aria-label="Mes anterior"><Icon name="prev" size={20} /></button>
             <button type="button" className="icon-btn" onClick={() => navigate(1)} aria-label="Mes siguiente"><Icon name="next" size={20} /></button>
           </div>
@@ -492,6 +507,7 @@ function CloseBlock({ close, showAmounts, thisYear, onView }) {
 // ── Pago de la tarjeta ───────────────────────────────────────────────────────
 
 function CardBlock({ card, showAmounts, thisYear, userId, api, onChanged, onError }) {
+  const [editing, setEditing] = useState(false)
   const zero = card.pending_gtq < 0.005
   const total = Math.max(card.at_close_gtq, 0.01)
   const planned = Math.min(card.planned_gtq, card.pending_gtq)
@@ -531,7 +547,18 @@ function CardBlock({ card, showAmounts, thisYear, userId, api, onChanged, onErro
           Del saldo de la tarjeta, {q(card.loans_gtq, showAmounts)} son préstamos que te deben y {q(card.own_gtq, showAmounts)} es consumo tuyo.
         </p>
       ) : null}
-      <p className="helper-text">Corte del {shortDate(card.close_date)}: {q(card.at_close_gtq, showAmounts)}.</p>
+      <p className="helper-text">
+        Pago de contado del corte del {shortDate(card.close_date)}: {q(card.at_close_gtq, showAmounts)}
+        {card.statement_override ? ' · ajustado a mano' : ''}.{' '}
+        <button type="button" className="link-btn" onClick={() => setEditing(true)}>
+          {card.statement_override ? 'Cambiar' : 'Ajustar contado'}
+        </button>
+      </p>
+      {editing ? (
+        <ContadoSheet card={card} userId={userId} api={api} showAmounts={showAmounts}
+          onClose={() => setEditing(false)}
+          onDone={async (text) => { setEditing(false); await onChanged(text) }} />
+      ) : null}
       {card.plan ? (
         <PlanBlock card={card} showAmounts={showAmounts} thisYear={thisYear}
           userId={userId} api={api} onChanged={onChanged} onError={onError} />
@@ -549,12 +576,13 @@ function PlanBlock({ card, showAmounts, thisYear, userId, api, onChanged, onErro
     setSaving(true)
     try {
       for (const s of plan.suggestions) {
+        const dollars = s.currency === 'USD'
         await api.postProgramado({
           telegram_user_id: Number(userId),
           kind: 'abono',
-          concept: `Abono a ${card.name}`,
-          amount: s.amount,
-          currency: 'GTQ',
+          concept: dollars ? `Abono en dólares a ${card.name}` : `Abono a ${card.name}`,
+          amount: dollars ? s.usd : s.amount,
+          currency: dollars ? 'USD' : 'GTQ',
           start_date: s.date,
           recurrence: 'none',
           credit_card_account_id: card.id,
@@ -580,9 +608,12 @@ function PlanBlock({ card, showAmounts, thisYear, userId, api, onChanged, onErro
         <>
           <ol className="plan-list">
             {plan.suggestions.map((s) => (
-              <li key={s.date + s.amount}>
+              <li key={s.date + s.currency + s.amount}>
                 <span>
-                  <strong>{capitalize(longDate(s.date, thisYear))}:</strong> abona {q(s.amount, showAmounts)}
+                  <strong>{capitalize(longDate(s.date, thisYear))}:</strong>{' '}
+                  {s.currency === 'USD'
+                    ? <>paga los dólares, {usd(s.usd, showAmounts)} (≈ {q(s.amount, showAmounts)})</>
+                    : <>abona {q(s.amount, showAmounts)}</>}
                   {s.account ? ` desde ${s.account}` : ''}
                 </span>
                 <span className="helper-text">{capitalize(s.reason)}</span>
@@ -601,12 +632,85 @@ function PlanBlock({ card, showAmounts, thisYear, userId, api, onChanged, onErro
           Te faltan {q(plan.shortfall, showAmounts)}: lo que entra antes del {longDate(card.payment_date, thisYear)} no alcanza sin bajar del colchón.
         </p>
       ) : null}
-      {card.pending_usd ? (
-        <p className="helper-text">
-          Incluye {usd(card.pending_usd, showAmounts)} de la porción en dólares: al confirmar ese abono, márcalo como abono a la porción en dólares.
+      {plan.usd_unplaced ? (
+        <p className="cover bad">
+          Los {usd(plan.usd_unplaced, showAmounts)} no caben completos en un solo día antes del {longDate(card.payment_date, thisYear)} sin bajar del colchón.
         </p>
+      ) : plan.suggestions.some((s) => s.currency === 'USD') ? (
+        <p className="helper-text">Los dólares van en un solo abono: así sabes qué día se pagan. Al confirmarlo queda como abono a la porción en dólares.</p>
       ) : null}
     </div>
+  )
+}
+
+// ── Ajustar el pago de contado ───────────────────────────────────────────────
+
+function ContadoSheet({ card, userId, api, showAmounts, onClose, onDone }) {
+  const type = card.tc_type || 'GTQ'
+  const showQ = type !== 'USD'
+  const showUsd = type !== 'GTQ'
+  const [form, setForm] = useState({
+    q: card.statement_q != null ? Number(card.statement_q).toFixed(2) : '',
+    usd: card.statement_usd != null ? Number(card.statement_usd).toFixed(2) : '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function send(payload, text) {
+    setSaving(true); setError('')
+    try {
+      await api.ajustarContado(card.id, { telegram_user_id: Number(userId), ...payload })
+      await onDone(text)
+    } catch (err) {
+      setError(err.message || 'No se pudo guardar.')
+      setSaving(false)
+    }
+  }
+
+  function submit(e) {
+    e.preventDefault()
+    send({
+      amount_q: showQ && form.q !== '' ? Number(form.q) : null,
+      amount_usd: showUsd && form.usd !== '' ? Number(form.usd) : null,
+    }, 'Pago de contado ajustado. El plan y la proyección ya usan este monto.')
+  }
+
+  return (
+    <Sheet title="Pago de contado" subtitle={`${card.name} · corte del ${shortDate(card.close_date)}`} onClose={onClose}>
+      {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
+      <form className="form-grid" onSubmit={submit}>
+        <p className="full-span helper-text">
+          Escribe lo que dice el banco. Si un cargo todavía no lo procesó, el contado de este corte es menor;
+          ese cargo pasa solo al corte siguiente. El saldo total de la tarjeta no cambia.
+        </p>
+        {showQ ? (
+          <label>
+            <span>Contado en quetzales</span>
+            <input type="number" min="0" step="0.01" value={form.q}
+              onChange={(e) => setForm((p) => ({ ...p, q: e.target.value }))} required={type === 'GTQ'} />
+            <small className="helper-text">Calculado: {q(card.statement_computed_q, showAmounts)}</small>
+          </label>
+        ) : null}
+        {showUsd ? (
+          <label>
+            <span>Contado en dólares</span>
+            <input type="number" min="0" step="0.01" value={form.usd}
+              onChange={(e) => setForm((p) => ({ ...p, usd: e.target.value }))} required={type === 'USD'} />
+            <small className="helper-text">Calculado: {usd(card.statement_computed_usd, showAmounts)}</small>
+          </label>
+        ) : null}
+        <p className="full-span helper-text">Solo aplica a este corte. En el siguiente vuelve el cálculo normal.</p>
+        <div className="full-span form-actions">
+          <button className="primary-btn" type="submit" disabled={saving}>{saving ? 'Guardando...' : 'Guardar contado'}</button>
+          {card.statement_override ? (
+            <button type="button" className="link-btn" disabled={saving}
+              onClick={() => send({ reset: true }, 'Volviste al pago de contado calculado.')}>
+              Volver al calculado
+            </button>
+          ) : null}
+        </div>
+      </form>
+    </Sheet>
   )
 }
 

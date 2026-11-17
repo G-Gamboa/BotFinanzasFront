@@ -22,6 +22,7 @@ const PATHS = {
   alert: <><path d="M12 4 3 19.5h18z" /><path d="M12 10v4.5" /><path d="M12 17v.2" /></>,
   users: <><circle cx="9" cy="8.5" r="3.2" /><path d="M3 19.5a6 6 0 0 1 12 0" /><path d="M16 5.6a3.2 3.2 0 0 1 0 5.8" /><path d="M17.5 14.2a6 6 0 0 1 3.5 5.3" /></>,
   user: <><circle cx="12" cy="8.5" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /></>,
+  refresh: <><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" /><path d="M19.5 4v4.5H15" /></>,
 }
 
 export default function Icon({ name, size = 16, className, title }) {

@@ -1703,3 +1703,7 @@ button.row-line {
 }
 
 .plan-list li span { display: block; }
+
+.icon-btn.spinning svg { animation: bf-spin 0.9s linear infinite; }
+@keyframes bf-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .icon-btn.spinning svg { animation: none; } }
