@@ -111,23 +111,22 @@ export default function TarjetasPage({
   const isMixtoTC = selectedTC?.tc_type === 'MIXTO'
   const needsUsdFields = isUsdTC || (isMixtoTC && tcPayForm.mixtoPayPortion === 'USD')
 
-  const totalGTQ = useMemo(
-    () => tcBalances.reduce((s, tc) => s + Math.max(0, tc.balance_gtq ?? 0), 0),
-    [tcBalances],
-  )
-  const totalUSD = useMemo(
-    () => tcBalances.reduce((s, tc) => s + Math.max(0, tc.balance_usd_portion ?? 0), 0),
-    [tcBalances],
-  )
-
-  const totalCorteGTQ = useMemo(
-    () => tcBalances.reduce((s, tc) => s + (tc.pending_to_pay_gtq ?? 0), 0),
-    [tcBalances],
-  )
-  const totalCorteUSD = useMemo(
-    () => tcBalances.reduce((s, tc) => s + (tc.pending_usd_portion ?? 0), 0),
-    [tcBalances],
-  )
+  // Cada chip muestra solo su porción: los quetzales sin los dólares convertidos,
+  // y aparte el total en Q (quetzales + dólares al tipo de cambio de cada tarjeta)
+  const totals = useMemo(() => tcBalances.reduce((acc, tc) => {
+    const sq = Math.max(0, saldoQ(tc))
+    const d = Math.max(0, tc.tc_type === 'GTQ' ? 0 : (tc.balance_usd_portion ?? 0))
+    const cq = corteQ(tc)
+    const cd = tc.pending_usd_portion ?? 0
+    return {
+      saldoQ: acc.saldoQ + sq,
+      saldoUSD: acc.saldoUSD + d,
+      saldoTotal: acc.saldoTotal + Math.max(0, tc.balance_gtq ?? 0),
+      corteQ: acc.corteQ + cq,
+      corteUSD: acc.corteUSD + cd,
+      corteTotal: acc.corteTotal + (tc.pending_to_pay_gtq ?? 0),
+    }
+  }, { saldoQ: 0, saldoUSD: 0, saldoTotal: 0, corteQ: 0, corteUSD: 0, corteTotal: 0 }), [tcBalances])
 
   const activePlans = useMemo(
     () => installmentPlans.filter((p) => p.status === 'active'),
@@ -271,32 +270,10 @@ export default function TarjetasPage({
       {/* ── Resumen total ── */}
       <Panel title="Tarjetas de crédito">
         {/* Totales globales */}
-        {(totalGTQ > 0 || totalUSD > 0) && (
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-            {totalGTQ > 0 && (
-              <div className="stat-chip">
-                <span>Total Q</span>
-                <strong style={{ color: 'var(--color-danger, #e53935)' }}>{q(totalGTQ)}</strong>
-              </div>
-            )}
-            {totalUSD > 0 && (
-              <div className="stat-chip">
-                <span>Total $</span>
-                <strong style={{ color: 'var(--color-danger, #e53935)' }}>{usd(totalUSD)}</strong>
-              </div>
-            )}
-            {totalCorteGTQ > 0 && (
-              <div className="stat-chip">
-                <span>Corte Q</span>
-                <strong style={{ color: 'var(--color-danger, #e53935)' }}>{q(totalCorteGTQ)}</strong>
-              </div>
-            )}
-            {totalCorteUSD > 0 && (
-              <div className="stat-chip">
-                <span>Corte $</span>
-                <strong style={{ color: 'var(--color-danger, #e53935)' }}>{usd(totalCorteUSD)}</strong>
-              </div>
-            )}
+        {(totals.saldoTotal > 0 || totals.corteTotal > 0) && (
+          <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
+            <ChipRow label="Saldo" qValue={totals.saldoQ} usdValue={totals.saldoUSD} total={totals.saldoTotal} />
+            <ChipRow label="Corte" qValue={totals.corteQ} usdValue={totals.corteUSD} total={totals.corteTotal} />
           </div>
         )}
 
@@ -356,7 +333,7 @@ export default function TarjetasPage({
                         </div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', opacity: 0.7 }}>
-                        <span>Total Q estimado</span>
+                        <span>Total (Q + $)</span>
                         <span>{q(tc.balance_gtq)}</span>
                       </div>
                     </>
@@ -412,16 +389,37 @@ export default function TarjetasPage({
                         Último corte {fmtDate(tc.last_close_date)}
                       </span>
                     )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                      <span style={{ opacity: 0.7 }}>Saldo a corte</span>
-                      <strong style={{ color: tc.pending_to_pay_gtq > 0 ? 'var(--color-danger, #e53935)' : 'var(--color-success, #43a047)' }}>
-                        {q(tc.pending_to_pay_gtq)}
-                      </strong>
-                    </div>
-                    {tc.pending_usd_portion != null && tc.pending_usd_portion > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
-                        <span style={{ opacity: 0.6 }}>Porción $ a corte</span>
-                        <span style={{ color: 'var(--color-danger, #e53935)' }}>{usd(tc.pending_usd_portion)}</span>
+                    {isMX && (tc.pending_usd_portion ?? 0) > 0 ? (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                          <span style={{ opacity: 0.7 }}>A corte en Q</span>
+                          <strong style={{ color: corteQ(tc) > 0 ? 'var(--color-danger, #e53935)' : 'var(--color-success, #43a047)' }}>
+                            {q(corteQ(tc))}
+                          </strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                          <span style={{ opacity: 0.7 }}>A corte en $</span>
+                          <span>
+                            <strong style={{ color: 'var(--color-danger, #e53935)' }}>{usd(tc.pending_usd_portion)}</strong>
+                            <span style={{ opacity: 0.5, fontSize: '0.78rem' }}> ≈{q(tc.pending_usd_portion * rate)}</span>
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', opacity: 0.7 }}>
+                          <span>Total a corte (Q + $)</span>
+                          <span>{q(tc.pending_to_pay_gtq)}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                        <span style={{ opacity: 0.7 }}>Saldo a corte</span>
+                        <span>
+                          <strong style={{ color: tc.pending_to_pay_gtq > 0 ? 'var(--color-danger, #e53935)' : 'var(--color-success, #43a047)' }}>
+                            {isUSD ? usd(tc.pending_usd_portion ?? 0) : q(tc.pending_to_pay_gtq)}
+                          </strong>
+                          {isUSD && (tc.pending_usd_portion ?? 0) > 0 && (
+                            <span style={{ opacity: 0.5, fontSize: '0.78rem' }}> ≈{q(tc.pending_to_pay_gtq)}</span>
+                          )}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -871,6 +869,45 @@ export default function TarjetasPage({
         </details>
       </Panel>
 
+    </div>
+  )
+}
+
+// Porción en quetzales del saldo y del corte, sin los dólares convertidos
+function saldoQ(tc) {
+  if (tc.tc_type === 'USD') return 0
+  return tc.balance_gtq_portion ?? tc.balance_gtq ?? 0
+}
+
+function corteQ(tc) {
+  if (tc.tc_type === 'USD') return 0
+  const total = tc.pending_to_pay_gtq ?? 0
+  if (tc.tc_type !== 'MIXTO') return total
+  const rate = tc.tc_exchange_rate ?? 8
+  return Math.max(0, Math.round((total - (tc.pending_usd_portion ?? 0) * rate) * 100) / 100)
+}
+
+function ChipRow({ label, qValue, usdValue, total }) {
+  if (total <= 0 && qValue <= 0 && usdValue <= 0) return null
+  const danger = { color: 'var(--color-danger, #e53935)' }
+  return (
+    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <div className="stat-chip">
+        <span>{label} en Q</span>
+        <strong style={danger}>{q(qValue)}</strong>
+      </div>
+      {usdValue > 0 && (
+        <>
+          <div className="stat-chip">
+            <span>{label} en $</span>
+            <strong style={danger}>{usd(usdValue)}</strong>
+          </div>
+          <div className="stat-chip">
+            <span>{label} total (Q + $)</span>
+            <strong>{q(total)}</strong>
+          </div>
+        </>
+      )}
     </div>
   )
 }
