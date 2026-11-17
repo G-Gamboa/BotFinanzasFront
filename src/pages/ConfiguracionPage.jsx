@@ -31,6 +31,7 @@ const initialPrefsForm = {
   showAmountsDefault: false,
   defaultTab: 'movimientos',
   usdToGtq: '7.7',
+  minCashBuffer: '500',
   themeKey: '',
 }
 
@@ -183,6 +184,7 @@ export default function ConfiguracionPage({
       showAmountsDefault: Boolean(preferencias.show_amounts_default),
       defaultTab: preferencias.default_tab || 'movimientos',
       usdToGtq: String(preferencias.usd_to_gtq ?? '7.7'),
+      minCashBuffer: String(preferencias.min_cash_buffer ?? '500'),
       themeKey: preferencias.theme_key || '',
     })
 
@@ -431,6 +433,7 @@ export default function ConfiguracionPage({
         show_amounts_default: Boolean(prefsForm.showAmountsDefault),
         default_tab: prefsForm.defaultTab,
         usd_to_gtq: Number(prefsForm.usdToGtq),
+        min_cash_buffer: Number(prefsForm.minCashBuffer || 0),
         theme_key: prefsForm.themeKey || null,
         tab_order: tabOrder && tabOrder.length > 0 ? tabOrder : null,
       })
@@ -928,66 +931,6 @@ export default function ConfiguracionPage({
         </Panel>
       ) : null}
 
-      {/* ── Editar Deudas ── */}
-      {activeDeudas.length > 0 ? (
-        <Panel title="Editar deudas">
-          <div className="config-select-row">
-            <label>
-              <span>Selecciona una deuda para editar</span>
-              <select value={selectedDebtId} onChange={(e) => setSelectedDebtId(e.target.value)}>
-                <option value="">Selecciona…</option>
-                {activeDeudas.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name} · {d.creditor}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          {selectedDebt ? (
-            <form className="form-grid" onSubmit={submitDebt}>
-              <label>
-                <span>Nombre</span>
-                <input value={debtForm.name} onChange={(e) => setDebtForm((p) => ({ ...p, name: e.target.value }))} required />
-              </label>
-              <label>
-                <span>Acreedor</span>
-                <input value={debtForm.creditor} onChange={(e) => setDebtForm((p) => ({ ...p, creditor: e.target.value }))} required />
-              </label>
-              <label>
-                <span>Fecha próximo pago</span>
-                <input type="date" value={debtForm.due_date} onChange={(e) => setDebtForm((p) => ({ ...p, due_date: e.target.value }))} required />
-              </label>
-              <label>
-                <span>Frecuencia de pago</span>
-                <select value={debtForm.payment_frequency} onChange={(e) => setDebtForm((p) => ({ ...p, payment_frequency: e.target.value }))}>
-                  <option value="monthly">Mensual</option>
-                  <option value="biweekly">Quincenal</option>
-                  <option value="weekly">Semanal</option>
-                  <option value="none">Sin fecha fija</option>
-                </select>
-              </label>
-              <label>
-                <span>Monto por cuota</span>
-                <input type="number" min="0.01" step="0.01" value={debtForm.installment_amount} onChange={(e) => setDebtForm((p) => ({ ...p, installment_amount: e.target.value }))} required />
-              </label>
-              <label>
-                <span>Total de cuotas</span>
-                <input type="number" min="1" step="1" value={debtForm.total_installments} onChange={(e) => setDebtForm((p) => ({ ...p, total_installments: e.target.value }))} required />
-              </label>
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-soft)', gridColumn: '1/-1' }}>
-                Cuotas pagadas: {selectedDebt.paid_installments} (no editable)
-              </div>
-              <div className="full-span form-actions split-actions">
-                <button className="primary-btn" type="submit" disabled={savingDebt}>{savingDebt ? 'Guardando...' : 'Actualizar deuda'}</button>
-                <button className="ghost-btn" type="button" onClick={() => { setSelectedDebtId(''); setDebtForm(initialDebtForm) }}>Limpiar</button>
-              </div>
-            </form>
-          ) : null}
-        </Panel>
-      ) : null}
-
       {/* ── Metas de ahorro ── */}
       <Panel title="Metas de ahorro">
         {goals.length > 0 ? (
@@ -1077,6 +1020,19 @@ export default function ConfiguracionPage({
               onChange={(e) => setPrefsForm((p) => ({ ...p, usdToGtq: e.target.value }))}
               required
             />
+          </label>
+
+          <label>
+            <span>Colchón mínimo en efectivo (Q)</span>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={prefsForm.minCashBuffer}
+              onChange={(e) => setPrefsForm((p) => ({ ...p, minCashBuffer: e.target.value }))}
+              required
+            />
+            <small className="helper-text">El plan de abonos a tus tarjetas nunca te deja por debajo de este monto.</small>
           </label>
 
           <label>

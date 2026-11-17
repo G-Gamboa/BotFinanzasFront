@@ -167,7 +167,11 @@ export default function CalendarioPage({
 
   const byDay = useMemo(() => {
     const map = {}
-    ;(data?.items || []).forEach((row) => { (map[row.date] = map[row.date] || []).push(row) })
+    // Lo atrasado de meses anteriores se muestra en el día de hoy
+    ;(data?.items || []).forEach((row) => {
+      const day = row.show_on || row.date
+      ;(map[day] = map[day] || []).push(row)
+    })
     return map
   }, [data])
 
@@ -205,7 +209,7 @@ export default function CalendarioPage({
           <span className="cal-kind">
             {KIND_LABEL[row.kind] || row.kind}
             {row.recurring ? ' · se repite' : ''}
-            {row.late ? ' · atrasado' : ''}
+            {row.show_on ? ` · atrasado desde el ${shortDate(row.date)}` : row.late ? ' · atrasado' : ''}
           </span>
           {row.note ? <span className="cal-note">{row.note}</span> : null}
           {canRemove && !isRemoving ? (
@@ -331,7 +335,10 @@ export default function CalendarioPage({
         />
       ) : null}
 
-      {(data.cards || []).map((card) => <CardBlock key={card.id} card={card} showAmounts={showAmounts} thisYear={thisYear} />)}
+      {(data.cards || []).map((card) => (
+        <CardBlock key={card.id} card={card} showAmounts={showAmounts} thisYear={thisYear}
+          userId={userId} api={api} onChanged={afterChange} onError={fail} />
+      ))}
 
       <section className="panel">
         <div className="cal-head">
@@ -380,6 +387,18 @@ export default function CalendarioPage({
           </div>
         ) : null}
       </section>
+
+      <FixedPanel
+        fixed={data.fixed}
+        userId={userId}
+        api={api}
+        creditCards={creditCards}
+        liquidAccounts={liquidAccounts}
+        categories={categories}
+        showAmounts={showAmounts}
+        onChanged={afterChange}
+        onError={fail}
+      />
 
       <AddForm
         userId={userId}
@@ -472,7 +491,7 @@ function CloseBlock({ close, showAmounts, thisYear, onView }) {
 
 // ── Pago de la tarjeta ───────────────────────────────────────────────────────
 
-function CardBlock({ card, showAmounts, thisYear }) {
+function CardBlock({ card, showAmounts, thisYear, userId, api, onChanged, onError }) {
   const zero = card.pending_gtq < 0.005
   const total = Math.max(card.at_close_gtq, 0.01)
   const planned = Math.min(card.planned_gtq, card.pending_gtq)
@@ -513,7 +532,81 @@ function CardBlock({ card, showAmounts, thisYear }) {
         </p>
       ) : null}
       <p className="helper-text">Corte del {shortDate(card.close_date)}: {q(card.at_close_gtq, showAmounts)}.</p>
+      {card.plan ? (
+        <PlanBlock card={card} showAmounts={showAmounts} thisYear={thisYear}
+          userId={userId} api={api} onChanged={onChanged} onError={onError} />
+      ) : null}
     </section>
+  )
+}
+
+function PlanBlock({ card, showAmounts, thisYear, userId, api, onChanged, onError }) {
+  const plan = card.plan
+  const [saving, setSaving] = useState(false)
+  const total = plan.suggestions.reduce((s, x) => s + x.amount, 0)
+
+  async function addAll() {
+    setSaving(true)
+    try {
+      for (const s of plan.suggestions) {
+        await api.postProgramado({
+          telegram_user_id: Number(userId),
+          kind: 'abono',
+          concept: `Abono a ${card.name}`,
+          amount: s.amount,
+          currency: 'GTQ',
+          start_date: s.date,
+          recurrence: 'none',
+          credit_card_account_id: card.id,
+          account_name: s.account || null,
+          note: `Plan sugerido · ${s.reason}`,
+        })
+      }
+      await onChanged('Abonos del plan agregados al calendario. Confírmalos cuando los hagas.')
+    } catch (err) {
+      onError(err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="plan-box">
+      <p className="plan-title">Plan sugerido · colchón de {q(plan.buffer, showAmounts)}</p>
+      {plan.planned > 0 ? (
+        <p className="helper-text">Ya tienes {q(plan.planned, showAmounts)} planeado o por cobrar para esta tarjeta; el plan cubre lo que falta.</p>
+      ) : null}
+      {plan.suggestions.length > 0 ? (
+        <>
+          <ol className="plan-list">
+            {plan.suggestions.map((s) => (
+              <li key={s.date + s.amount}>
+                <span>
+                  <strong>{capitalize(longDate(s.date, thisYear))}:</strong> abona {q(s.amount, showAmounts)}
+                  {s.account ? ` desde ${s.account}` : ''}
+                </span>
+                <span className="helper-text">{capitalize(s.reason)}</span>
+              </li>
+            ))}
+          </ol>
+          <button type="button" className="confirm-btn" disabled={saving} onClick={addAll}>
+            {saving ? 'Agregando...' : `Agregar ${plan.suggestions.length === 1 ? 'este abono' : 'estos abonos'} al calendario (${q(total, showAmounts)})`}
+          </button>
+        </>
+      ) : plan.covered ? (
+        <p className="cover ok">Con lo que ya planeaste alcanza para dejarla en cero.</p>
+      ) : null}
+      {!plan.covered ? (
+        <p className="cover bad">
+          Te faltan {q(plan.shortfall, showAmounts)}: lo que entra antes del {longDate(card.payment_date, thisYear)} no alcanza sin bajar del colchón.
+        </p>
+      ) : null}
+      {card.pending_usd ? (
+        <p className="helper-text">
+          Incluye {usd(card.pending_usd, showAmounts)} de la porción en dólares: al confirmar ese abono, márcalo como abono a la porción en dólares.
+        </p>
+      ) : null}
+    </div>
   )
 }
 
@@ -523,9 +616,35 @@ function defaultPayDate(row, today) {
   return row.date && row.date <= today ? row.date : today
 }
 
+const DEFAULT_RATE = 7.7
+
+function cardInfo(creditCards, cardId) {
+  const card = creditCards.find((tc) => String(tc.id) === String(cardId))
+  return { card, type: card?.tc_type || 'GTQ', rate: Number(card?.tc_exchange_rate || DEFAULT_RATE) }
+}
+
+// En qué moneda se escribe el monto según la tarjeta y la moneda del programado
+function entryFor(kind, itemCurrency, type) {
+  if (kind === 'abono') {
+    if (type === 'USD') return { dollars: true, locked: true }
+    if (type === 'GTQ') return { dollars: false, locked: true }
+    return { dollars: itemCurrency === 'USD', locked: false }
+  }
+  if (type === 'USD') return { currency: 'USD', locked: true }
+  if (type === 'GTQ') return { currency: 'GTQ', locked: true }
+  return { currency: itemCurrency, locked: false }
+}
+
+function convert(amount, from, to, rate) {
+  if (amount == null || amount === '') return ''
+  const n = Number(amount)
+  if (from === to) return n.toFixed(2)
+  return (from === 'USD' ? n * rate : n / rate).toFixed(2)
+}
+
 function ConfirmSheet({ row, userId, api, today, liquidAccounts, creditCards, categories, onClose, onDone }) {
   const kind = row.kind
-  const isUsd = row.currency === 'USD'
+  const itemCurrency = row.currency || 'GTQ'
   const catList = kind === 'ingreso' ? categories.ING : categories.EGR
   const bankAccounts = liquidAccounts.filter((a) => a.name !== 'Efectivo')
   const allowsCard = kind === 'pago' && creditCards.length > 0
@@ -536,18 +655,40 @@ function ConfirmSheet({ row, userId, api, today, liquidAccounts, creditCards, ca
     if (row.account_name === 'Efectivo') return 'cash'
     return bankAccounts.length ? 'transfer' : 'cash'
   })()
+  const initialCardId = String(row.credit_card_account_id || creditCards[0]?.id || '')
 
-  const [form, setForm] = useState({
-    amount: row.amount != null ? String(row.amount) : '',
-    amountGtq: '',
+  // Monto inicial y moneda de captura según la tarjeta elegida
+  function cardDefaults(cardId) {
+    const { type, rate } = cardInfo(creditCards, cardId)
+    if (kind === 'abono') {
+      const mode = entryFor('abono', itemCurrency, type)
+      const usd = mode.dollars ? convert(row.amount, itemCurrency, 'USD', rate) : ''
+      return {
+        chargeCurrency: 'GTQ',
+        dollars: mode.dollars,
+        usdPaid: usd,
+        amount: mode.dollars ? convert(usd, 'USD', 'GTQ', rate) : convert(row.amount, itemCurrency, 'GTQ', rate),
+      }
+    }
+    const mode = entryFor(kind, itemCurrency, type)
+    return {
+      chargeCurrency: mode.currency,
+      dollars: false,
+      usdPaid: '',
+      amount: convert(row.amount, itemCurrency, mode.currency, rate),
+    }
+  }
+
+  const [form, setForm] = useState(() => ({
     date: defaultPayDate(row, today),
     category: row.category_name && catList.includes(row.category_name) ? row.category_name : (catList[0] || ''),
     method: initialMethod,
-    account: row.account_name && row.account_name !== 'Efectivo'
-      ? row.account_name
-      : (bankAccounts[0]?.name || ''),
-    cardId: String(row.credit_card_account_id || creditCards[0]?.id || ''),
-  })
+    account: row.account_name && row.account_name !== 'Efectivo' ? row.account_name : (bankAccounts[0]?.name || ''),
+    cardId: initialCardId,
+    ...(kind === 'abono' || kind === 'cargo_tc' || initialMethod === 'credit_card'
+      ? cardDefaults(initialCardId)
+      : { chargeCurrency: 'GTQ', dollars: false, usdPaid: '', amount: row.amount_gtq != null ? Number(row.amount_gtq).toFixed(2) : '' }),
+  }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
@@ -556,12 +697,51 @@ function ConfirmSheet({ row, userId, api, today, liquidAccounts, creditCards, ca
   const usesCard = kind === 'cargo_tc' || kind === 'abono' || form.method === 'credit_card'
   const usesAccount = kind === 'abono' || (kind !== 'cargo_tc' && form.method === 'transfer')
   const selectedAccount = liquidAccounts.find((a) => a.name === (kind === 'abono' ? form.account || 'Efectivo' : form.account))
+  const { card, type: cardType, rate } = cardInfo(creditCards, form.cardId)
+  const mode = usesCard ? entryFor(kind, itemCurrency, cardType) : null
+
+  function changeCard(cardId) {
+    setForm((prev) => ({ ...prev, cardId, ...cardDefaults(cardId) }))
+  }
+
+  function changeMethod(method) {
+    setForm((prev) => ({
+      ...prev,
+      method,
+      ...(method === 'credit_card'
+        ? cardDefaults(prev.cardId)
+        : { chargeCurrency: 'GTQ', dollars: false, usdPaid: '', amount: row.amount_gtq != null ? Number(row.amount_gtq).toFixed(2) : prev.amount }),
+    }))
+  }
+
+  function toggleChargeDollars(on) {
+    setForm((prev) => ({
+      ...prev,
+      chargeCurrency: on ? 'USD' : 'GTQ',
+      amount: convert(prev.amount, prev.chargeCurrency, on ? 'USD' : 'GTQ', rate),
+    }))
+  }
+
+  function togglePaymentDollars(on) {
+    setForm((prev) => ({
+      ...prev,
+      dollars: on,
+      usdPaid: on ? convert(prev.amount, 'GTQ', 'USD', rate) : '',
+    }))
+  }
+
+  // Monto que se guarda en la fecha, siempre en la moneda del programado
+  function amountInItemCurrency() {
+    if (kind === 'abono' && form.dollars) return Number(convert(form.usdPaid, 'USD', itemCurrency, rate))
+    const entryCurrency = usesCard && kind !== 'abono' ? form.chargeCurrency : 'GTQ'
+    return Number(convert(form.amount, entryCurrency, itemCurrency, rate))
+  }
 
   async function saveAmountOnly() {
     setSaving(true); setError('')
     try {
       await api.patchOcurrencia({
-        telegram_user_id: Number(userId), item_id: row.item_id, due_date: row.date, amount: Number(form.amount),
+        telegram_user_id: Number(userId), item_id: row.item_id, due_date: row.date, amount: amountInItemCurrency(),
       })
       await onDone('Monto anotado.')
     } catch (err) {
@@ -578,7 +758,7 @@ function ConfirmSheet({ row, userId, api, today, liquidAccounts, creditCards, ca
         item_id: row.item_id,
         due_date: row.date,
         payment_date: form.date,
-        amount: form.amount ? Number(form.amount) : null,
+        amount: form.amount ? amountInItemCurrency() : null,
         create_record: false,
       })
       await onDone('Marcado como hecho, sin registrar otro movimiento.')
@@ -603,8 +783,11 @@ function ConfirmSheet({ row, userId, api, today, liquidAccounts, creditCards, ca
       if (usesCard) payload.credit_card_account_id = Number(form.cardId)
       if (kind === 'abono') {
         payload.account_name = form.account || 'Efectivo'
-        if (isUsd) payload.amount_gtq = Number(form.amountGtq)
-      } else if (kind !== 'cargo_tc') {
+        if (form.dollars) payload.usd_paid = Number(form.usdPaid)
+      } else if (usesCard) {
+        payload.charge_currency = form.chargeCurrency
+        if (kind === 'pago') payload.payment_method = 'credit_card'
+      } else {
         payload.payment_method = form.method
         if (form.method === 'transfer') payload.account_name = form.account
       }
@@ -621,12 +804,69 @@ function ConfirmSheet({ row, userId, api, today, liquidAccounts, creditCards, ca
     : kind === 'cargo_tc' ? 'Confirmar cargo a la tarjeta'
     : 'Confirmar pago'
 
+  const planned = row.amount != null ? `Planeado: ${money(row.amount, itemCurrency)}` : null
+  const chargeLabel = !usesCard || kind === 'abono' ? 'Monto'
+    : form.chargeCurrency === 'USD' ? 'Dólares cargados' : 'Quetzales que cobró el banco'
+
+  let cardHelp = null
+  if (usesCard && card) {
+    if (kind === 'abono') {
+      if (cardType === 'GTQ') cardHelp = `${card.name} lleva su saldo en quetzales: el abono va en quetzales.`
+      else if (form.dollars) cardHelp = `Se abona a la porción en dólares de ${card.name}. Escribe los dólares abonados y los quetzales que salieron de tu cuenta.`
+      else cardHelp = `Se abona a la porción en quetzales de ${card.name}.`
+    } else if (cardType === 'GTQ') {
+      cardHelp = itemCurrency === 'USD'
+        ? `${card.name} lleva su saldo en quetzales: escribe los quetzales que cobró el banco por este cargo en dólares (referencia ${q(convert(row.amount, 'USD', 'GTQ', rate))}).`
+        : `${card.name} lleva su saldo en quetzales.`
+    } else if (cardType === 'USD') {
+      cardHelp = `${card.name} lleva su saldo en dólares: el cargo se registra en dólares.`
+    } else if (form.chargeCurrency === 'USD') {
+      cardHelp = `Va a la porción en dólares de ${card.name}; en quetzales serían unos ${q(convert(form.amount, 'USD', 'GTQ', rate))} al tipo de la tarjeta.`
+    } else {
+      cardHelp = `Va a la porción en quetzales de ${card.name}.`
+    }
+  }
+
   return (
-    <Sheet title={title} subtitle={row.concept} onClose={onClose}>
+    <Sheet title={title} subtitle={[row.concept, planned].filter(Boolean).join(' · ')} onClose={onClose}>
       {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
       <form className="form-grid" onSubmit={submit}>
+        {usesCard ? (
+          <label className="full-span">
+            <span>Tarjeta</span>
+            <select value={form.cardId} onChange={(e) => changeCard(e.target.value)} required>
+              {creditCards.map((tc) => (
+                <option key={tc.id} value={tc.id}>
+                  {tc.name} · {tc.tc_type === 'USD' ? 'en dólares' : tc.tc_type === 'MIXTO' ? 'quetzales y dólares' : 'en quetzales'}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
+        {usesCard && kind !== 'abono' && !mode.locked ? (
+          <label className="full-span check-label">
+            <input type="checkbox" checked={form.chargeCurrency === 'USD'} onChange={(e) => toggleChargeDollars(e.target.checked)} />
+            Cargo en dólares
+          </label>
+        ) : null}
+        {usesCard && kind === 'abono' && !mode.locked ? (
+          <label className="full-span check-label">
+            <input type="checkbox" checked={form.dollars} onChange={(e) => togglePaymentDollars(e.target.checked)} />
+            Abono a la porción en dólares
+          </label>
+        ) : null}
+
+        {kind === 'abono' && form.dollars ? (
+          <label>
+            <span>Dólares abonados</span>
+            <input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.usdPaid}
+              onChange={(e) => set('usdPaid', e.target.value)} required />
+          </label>
+        ) : null}
+
         <label>
-          <span>{isUsd ? 'Monto en dólares' : 'Monto'}</span>
+          <span>{kind === 'abono' ? (form.dollars ? 'Quetzales que salieron de tu cuenta' : 'Quetzales abonados') : chargeLabel}</span>
           <input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.amount}
             onChange={(e) => set('amount', e.target.value)} required autoFocus={row.amount == null} />
         </label>
@@ -635,13 +875,7 @@ function ConfirmSheet({ row, userId, api, today, liquidAccounts, creditCards, ca
           <input type="date" value={form.date} onChange={(e) => set('date', e.target.value)} required />
         </label>
 
-        {kind === 'abono' && isUsd ? (
-          <label className="full-span">
-            <span>Quetzales que salieron de tu cuenta</span>
-            <input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.amountGtq}
-              onChange={(e) => set('amountGtq', e.target.value)} required />
-          </label>
-        ) : null}
+        {cardHelp ? <small className="full-span helper-text">{cardHelp}</small> : null}
 
         {needsCategory ? (
           <label>
@@ -655,7 +889,7 @@ function ConfirmSheet({ row, userId, api, today, liquidAccounts, creditCards, ca
         {kind === 'ingreso' || kind === 'pago' ? (
           <label>
             <span>{kind === 'ingreso' ? 'Entra por' : 'Sale por'}</span>
-            <select value={form.method} onChange={(e) => set('method', e.target.value)}>
+            <select value={form.method} onChange={(e) => changeMethod(e.target.value)}>
               <option value="cash">Efectivo</option>
               {bankAccounts.length ? <option value="transfer">Transferencia</option> : null}
               {allowsCard ? <option value="credit_card">Tarjeta de crédito</option> : null}
@@ -673,16 +907,7 @@ function ConfirmSheet({ row, userId, api, today, liquidAccounts, creditCards, ca
           </label>
         ) : null}
 
-        {usesCard ? (
-          <label>
-            <span>Tarjeta</span>
-            <select value={form.cardId} onChange={(e) => set('cardId', e.target.value)} required>
-              {creditCards.map((tc) => <option key={tc.id} value={tc.id}>{tc.name}</option>)}
-            </select>
-          </label>
-        ) : null}
-
-        {kind !== 'ingreso' && !usesCard || kind === 'abono' ? (
+        {(kind !== 'ingreso' && !usesCard) || kind === 'abono' ? (
           <small className="full-span helper-text">
             Disponible en {kind === 'abono' ? (form.account || 'Efectivo') : form.method === 'transfer' ? form.account : 'Efectivo'}:{' '}
             {q((kind === 'abono' || form.method === 'transfer'
@@ -697,7 +922,7 @@ function ConfirmSheet({ row, userId, api, today, liquidAccounts, creditCards, ca
               Solo anotar el monto
             </button>
           ) : null}
-          <button className="primary-btn" type="submit" disabled={saving || !form.amount}>
+          <button className="primary-btn" type="submit" disabled={saving || !form.amount || (form.dollars && !form.usdPaid)}>
             {saving ? 'Guardando...' : 'Confirmar y registrar'}
           </button>
         </div>
@@ -717,8 +942,8 @@ function DebtSheet({ row, userId, api, today, liquidAccounts, onClose, onDone })
   const bankAccounts = liquidAccounts.filter((a) => a.name !== 'Efectivo')
   const [form, setForm] = useState({
     date: defaultPayDate(row, today),
-    method: bankAccounts.length ? 'transfer' : 'cash',
-    account: bankAccounts[0]?.name || '',
+    method: row.account_name === 'Efectivo' || !bankAccounts.length ? 'cash' : 'transfer',
+    account: row.account_name && row.account_name !== 'Efectivo' ? row.account_name : (bankAccounts[0]?.name || ''),
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -910,6 +1135,221 @@ function AbonoSheet({ row, card, userId, api, today, liquidAccounts, onClose, on
         <div className="full-span form-actions">
           <button className="primary-btn" type="submit" disabled={saving || !form.amount || overOwn}>
             {saving ? 'Guardando...' : 'Registrar abono'}
+          </button>
+        </div>
+      </form>
+    </Sheet>
+  )
+}
+
+// ── Suscripciones y pagos fijos ──────────────────────────────────────────────
+
+const EVERY = { monthly: 'cada mes', biweekly: 'cada 2 semanas', weekly: 'cada semana' }
+
+function FixedPanel({ fixed, userId, api, creditCards, liquidAccounts, categories, showAmounts, onChanged, onError }) {
+  const [editing, setEditing] = useState(null)
+  const [removing, setRemoving] = useState(null)
+  const items = fixed?.items || []
+
+  async function remove(item) {
+    try {
+      await api.deleteProgramado(item.item_id, userId)
+      setRemoving(null)
+      await onChanged('Se quitó de tus pagos fijos.')
+    } catch (err) {
+      onError(err)
+    }
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Suscripciones y pagos fijos</h2>
+        {items.length ? <strong>{q(fixed.monthly_gtq, showAmounts)} al mes</strong> : null}
+      </div>
+      {items.length === 0 ? (
+        <p className="helper-text">Agrega aquí la luz, el internet y tus suscripciones para verlos en el calendario y confirmarlos.</p>
+      ) : (
+        <div className="rows">
+          {items.map((item) => (
+            <div key={item.item_id} className="fixed-row">
+              <span className={`cal-ico k-${item.kind}`}><Icon name={item.kind} /></span>
+              <div className="cal-main">
+                <span className="cal-concept">{item.concept}</span>
+                <span className="cal-kind">
+                  {item.amount != null ? money(item.amount, item.currency, showAmounts) : 'Monto variable'}
+                  {item.currency === 'USD' && item.amount_gtq != null ? ` ≈ ${q(item.amount_gtq, showAmounts)}` : ''}
+                  {' · '}{EVERY[item.recurrence] || item.recurrence}
+                  {item.next_date ? ` · próximo ${shortDate(item.next_date)}` : ''}
+                </span>
+                <span className="cal-kind">
+                  {item.kind === 'cargo_tc' ? `A ${item.credit_card_name || 'tarjeta sin elegir'}` : `Desde ${item.account_name || 'cuenta por elegir'}`}
+                  {item.category_name ? ` · ${item.category_name}` : ''}
+                </span>
+                {removing === item.item_id ? (
+                  <span className="cal-remove">
+                    <button type="button" className="link-btn danger" onClick={() => remove(item)}>Sí, quitar</button>
+                    <button type="button" className="link-btn" onClick={() => setRemoving(null)}>Cancelar</button>
+                  </span>
+                ) : (
+                  <span className="cal-remove">
+                    <button type="button" className="link-btn" onClick={() => setEditing(item)}>Editar</button>
+                    <button type="button" className="link-btn" onClick={() => setRemoving(item.item_id)}>Quitar</button>
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+          <div className="row-line sub">
+            <span>Al año</span>
+            <strong>{q(fixed.yearly_gtq, showAmounts)}</strong>
+          </div>
+        </div>
+      )}
+      <button type="button" className="ghost-btn" style={{ marginTop: 12 }} onClick={() => setEditing({})}>
+        <span className="title-with-icon"><Icon name="plus" /> Agregar suscripción o pago fijo</span>
+      </button>
+
+      {editing ? (
+        <FixedSheet
+          item={editing.item_id ? editing : null}
+          userId={userId} api={api} creditCards={creditCards} liquidAccounts={liquidAccounts} categories={categories}
+          onClose={() => setEditing(null)}
+          onDone={async (text) => { setEditing(null); await onChanged(text) }}
+        />
+      ) : null}
+    </section>
+  )
+}
+
+function FixedSheet({ item, userId, api, creditCards, liquidAccounts, categories, onClose, onDone }) {
+  const editingItem = Boolean(item)
+  const bankAccounts = liquidAccounts.filter((a) => a.name !== 'Efectivo')
+  const [form, setForm] = useState({
+    kind: item?.kind || (creditCards.length ? 'cargo_tc' : 'pago'),
+    concept: item?.concept || '',
+    amount: item?.amount != null ? String(item.amount) : '',
+    currency: item?.currency || 'GTQ',
+    start: item?.start_date || getGuatemalaDateString(),
+    recurrence: item?.recurrence || 'monthly',
+    end: item?.end_date || '',
+    cardId: String(item?.credit_card_account_id || creditCards[0]?.id || ''),
+    account: item?.account_name || 'Efectivo',
+    category: item?.category_name || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
+  const card = creditCards.find((tc) => String(tc.id) === String(form.cardId))
+  const cardType = card?.tc_type || 'GTQ'
+
+  let currencyHelp = null
+  if (form.kind === 'cargo_tc' && card) {
+    if (form.currency === 'USD' && cardType === 'GTQ') {
+      currencyHelp = `${card.name} lleva su saldo en quetzales: al confirmar escribirás los quetzales que cobró el banco.`
+    } else if (form.currency === 'GTQ' && cardType === 'USD') {
+      currencyHelp = `${card.name} lleva su saldo en dólares: al confirmar escribirás el cargo en dólares.`
+    } else if (form.currency === 'USD' && cardType === 'MIXTO') {
+      currencyHelp = `Se cargará a la porción en dólares de ${card.name}.`
+    }
+  }
+
+  async function submit(e) {
+    e.preventDefault()
+    setSaving(true); setError('')
+    const isCard = form.kind === 'cargo_tc'
+    const fields = {
+      telegram_user_id: Number(userId),
+      concept: form.concept.trim(),
+      amount: form.amount ? Number(form.amount) : null,
+      currency: form.currency,
+      start_date: form.start,
+      recurrence: form.recurrence,
+      end_date: form.end || null,
+      category_name: form.category || null,
+      credit_card_account_id: isCard ? Number(form.cardId) : null,
+      payment_method: isCard ? 'credit_card' : (form.account === 'Efectivo' ? 'cash' : 'transfer'),
+      account_name: isCard || form.account === 'Efectivo' ? null : form.account,
+    }
+    try {
+      if (editingItem) await api.patchProgramado(item.item_id, fields)
+      else await api.postProgramado({ ...fields, kind: form.kind })
+      await onDone(editingItem ? 'Pago fijo actualizado.' : 'Pago fijo agregado al calendario.')
+    } catch (err) {
+      setError(err.message || 'No se pudo guardar.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Sheet title={editingItem ? 'Editar pago fijo' : 'Nueva suscripción o pago fijo'} onClose={onClose}>
+      {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
+      <form className="form-grid" onSubmit={submit}>
+        <label className="full-span">
+          <span>Cómo se paga</span>
+          <select value={form.kind} onChange={(e) => set('kind', e.target.value)} disabled={editingItem}>
+            {creditCards.length ? <option value="cargo_tc">Se carga a la tarjeta</option> : null}
+            <option value="pago">Lo pago en efectivo o desde el banco</option>
+          </select>
+        </label>
+        <label className="full-span">
+          <span>Qué es</span>
+          <input value={form.concept} onChange={(e) => set('concept', e.target.value)} maxLength={120} placeholder="Ej. Netflix, Luz, Internet" required />
+        </label>
+        <label>
+          <span>Monto, si es fijo</span>
+          <input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.amount} onChange={(e) => set('amount', e.target.value)} placeholder="Vacío si varía" />
+        </label>
+        <label>
+          <span>Moneda</span>
+          <select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
+            <option value="GTQ">Quetzales</option>
+            <option value="USD">Dólares</option>
+          </select>
+        </label>
+        {form.kind === 'cargo_tc' ? (
+          <label className="full-span">
+            <span>Tarjeta</span>
+            <select value={form.cardId} onChange={(e) => set('cardId', e.target.value)} required>
+              {creditCards.map((tc) => <option key={tc.id} value={tc.id}>{tc.name}</option>)}
+            </select>
+          </label>
+        ) : (
+          <label className="full-span">
+            <span>Sale de</span>
+            <select value={form.account} onChange={(e) => set('account', e.target.value)}>
+              <option value="Efectivo">Efectivo</option>
+              {bankAccounts.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
+            </select>
+          </label>
+        )}
+        {currencyHelp ? <small className="full-span helper-text">{currencyHelp}</small> : null}
+        <label>
+          <span>Próximo cargo</span>
+          <input type="date" value={form.start} onChange={(e) => set('start', e.target.value)} required />
+        </label>
+        <label>
+          <span>Se repite</span>
+          <select value={form.recurrence} onChange={(e) => set('recurrence', e.target.value)}>
+            <option value="monthly">Cada mes</option>
+            <option value="biweekly">Cada 2 semanas</option>
+            <option value="weekly">Cada semana</option>
+          </select>
+        </label>
+        <label>
+          <span>Categoría</span>
+          <select value={form.category} onChange={(e) => set('category', e.target.value)}>
+            <option value="">La elijo al confirmar</option>
+            {categories.EGR.map((name) => <option key={name} value={name}>{name}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>Hasta, si termina</span>
+          <input type="date" value={form.end} onChange={(e) => set('end', e.target.value)} />
+        </label>
+        <div className="full-span form-actions">
+          <button className="primary-btn" type="submit" disabled={saving || !form.concept.trim()}>
+            {saving ? 'Guardando...' : editingItem ? 'Guardar cambios' : 'Agregar'}
           </button>
         </div>
       </form>

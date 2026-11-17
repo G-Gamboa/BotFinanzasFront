@@ -68,11 +68,12 @@ export default function DeudasPage({
 
 const emptyDebt = () => ({
   name: '', creditor: '', dueDate: getGuatemalaDateString(), installmentAmount: '',
-  totalInstallments: '', paidInstallments: '0', paymentFrequency: 'monthly',
+  totalInstallments: '', paidInstallments: '0', paymentFrequency: 'monthly', paymentAccount: '',
 })
 
 function DebtsSection({ userId, api, deudas, liquidAccounts, onDone, onError }) {
   const [paying, setPaying] = useState(null)
+  const [editingDebt, setEditingDebt] = useState(null)
   const [form, setForm] = useState(emptyDebt)
   const [saving, setSaving] = useState(false)
   const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
@@ -98,6 +99,7 @@ function DebtsSection({ userId, api, deudas, liquidAccounts, onDone, onError }) 
         total_installments: Number(form.totalInstallments),
         paid_installments: Number(form.paidInstallments || 0),
         payment_frequency: form.paymentFrequency,
+        payment_account_name: form.paymentAccount || null,
       })
       setForm(emptyDebt())
       onDone('Deuda creada correctamente.')
@@ -130,8 +132,10 @@ function DebtsSection({ userId, api, deudas, liquidAccounts, onDone, onError }) 
                     <span>Cuota {q(d.installment_amount)}</span>
                     <span>{FREQ_LABELS[d.payment_frequency] ?? d.payment_frequency}</span>
                     <span>Próximo pago {fmtDate(d.due_date)}</span>
+                    <span>{d.payment_account ? `Se paga desde ${d.payment_account}` : 'Sin cuenta de pago'}</span>
                   </div>
                   <div className="item-actions">
+                    <button type="button" className="link-btn" onClick={() => setEditingDebt(d)}>Editar</button>
                     <button type="button" className="confirm-btn" onClick={() => setPaying(d)}>Pagar cuota</button>
                   </div>
                 </div>
@@ -175,6 +179,13 @@ function DebtsSection({ userId, api, deudas, liquidAccounts, onDone, onError }) 
               <input type="number" min="1" step="1" value={form.totalInstallments} onChange={(e) => set('totalInstallments', e.target.value)} required />
             </label>
             <label>
+              <span>Se paga desde</span>
+              <select value={form.paymentAccount} onChange={(e) => set('paymentAccount', e.target.value)}>
+                <option value="">Lo elijo al pagar</option>
+                {liquidAccounts.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
+              </select>
+            </label>
+            <label>
               <span>Cuotas ya pagadas</span>
               <input type="number" min="0" step="1" value={form.paidInstallments} onChange={(e) => set('paidInstallments', e.target.value)} required />
             </label>
@@ -187,6 +198,12 @@ function DebtsSection({ userId, api, deudas, liquidAccounts, onDone, onError }) 
         </details>
       </section>
 
+      {editingDebt ? (
+        <EditDebtSheet debt={editingDebt} api={api} liquidAccounts={liquidAccounts}
+          onClose={() => setEditingDebt(null)}
+          onDone={() => { setEditingDebt(null); onDone('Deuda actualizada. El calendario ya usa estos datos.') }} />
+      ) : null}
+
       {paying ? (
         <PayDebtSheet debt={paying} userId={userId} api={api} liquidAccounts={liquidAccounts}
           onClose={() => setPaying(null)}
@@ -196,12 +213,99 @@ function DebtsSection({ userId, api, deudas, liquidAccounts, onDone, onError }) 
   )
 }
 
+function EditDebtSheet({ debt, api, liquidAccounts, onClose, onDone }) {
+  const [form, setForm] = useState({
+    name: debt.name,
+    creditor: debt.creditor,
+    dueDate: debt.due_date,
+    installmentAmount: String(debt.installment_amount),
+    totalInstallments: String(debt.total_installments),
+    paymentFrequency: debt.payment_frequency || 'monthly',
+    paymentAccount: debt.payment_account || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
+
+  async function submit(e) {
+    e.preventDefault()
+    setSaving(true); setError('')
+    try {
+      await api.patchDeuda(debt.id, {
+        name: form.name,
+        creditor: form.creditor,
+        due_date: form.dueDate,
+        installment_amount: Number(form.installmentAmount),
+        total_installments: Number(form.totalInstallments),
+        payment_frequency: form.paymentFrequency,
+        payment_account_name: form.paymentAccount || null,
+      })
+      onDone()
+    } catch (err) {
+      setError(err.message || 'No se pudo guardar la deuda.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Sheet title="Editar deuda" subtitle={`${debt.paid_installments} de ${debt.total_installments} cuotas pagadas`} onClose={onClose}>
+      {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
+      <form className="form-grid" onSubmit={submit}>
+        <label>
+          <span>Nombre</span>
+          <input value={form.name} onChange={(e) => set('name', e.target.value)} required />
+        </label>
+        <label>
+          <span>Acreedor</span>
+          <input value={form.creditor} onChange={(e) => set('creditor', e.target.value)} required />
+        </label>
+        <label>
+          <span>Próximo pago</span>
+          <input type="date" value={form.dueDate} onChange={(e) => set('dueDate', e.target.value)} required />
+        </label>
+        <label>
+          <span>Frecuencia</span>
+          <select value={form.paymentFrequency} onChange={(e) => set('paymentFrequency', e.target.value)}>
+            <option value="monthly">Mensual</option>
+            <option value="biweekly">Quincenal</option>
+            <option value="weekly">Semanal</option>
+            <option value="none">Sin fecha fija</option>
+          </select>
+        </label>
+        <label>
+          <span>Cuota</span>
+          <input type="number" min="0.01" step="0.01" value={form.installmentAmount} onChange={(e) => set('installmentAmount', e.target.value)} required />
+        </label>
+        <label>
+          <span>Total de cuotas</span>
+          <input type="number" min="1" step="1" value={form.totalInstallments} onChange={(e) => set('totalInstallments', e.target.value)} required />
+        </label>
+        <label className="full-span">
+          <span>Se paga desde</span>
+          <select value={form.paymentAccount} onChange={(e) => set('paymentAccount', e.target.value)}>
+            <option value="">Lo elijo al pagar</option>
+            {liquidAccounts.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
+          </select>
+        </label>
+        <small className="full-span helper-text">
+          El calendario muestra cada cuota en su fecha con esta cuenta ya elegida, y la descuenta de tu saldo esperado.
+        </small>
+        <div className="full-span form-actions">
+          <button className="primary-btn" type="submit" disabled={saving}>
+            {saving ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+        </div>
+      </form>
+    </Sheet>
+  )
+}
+
 function PayDebtSheet({ debt, userId, api, liquidAccounts, onClose, onDone }) {
   const bankAccounts = liquidAccounts.filter((a) => a.name !== 'Efectivo')
   const [form, setForm] = useState({
     date: getGuatemalaDateString(),
-    method: bankAccounts.length ? 'transfer' : 'cash',
-    account: bankAccounts[0]?.name || '',
+    method: debt.payment_account === 'Efectivo' || !bankAccounts.length ? 'cash' : 'transfer',
+    account: debt.payment_account && debt.payment_account !== 'Efectivo' ? debt.payment_account : (bankAccounts[0]?.name || ''),
     note: '',
   })
   const [saving, setSaving] = useState(false)

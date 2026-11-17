@@ -1671,3 +1671,35 @@ button.row-line {
   padding-top: 10px;
   border-top: 1px solid var(--border);
 }
+
+.fixed-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.plan-box {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-soft);
+  display: grid;
+  gap: 8px;
+}
+
+.plan-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.plan-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 6px;
+}
+
+.plan-list li span { display: block; }
