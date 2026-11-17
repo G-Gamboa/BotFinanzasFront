@@ -358,6 +358,9 @@ export default function App() {
           canUseTarjetas={canUseTarjetas}
           canPrivate={canPrivate}
           isAdmin={Boolean(catalogos?.user?.is_admin)}
+          sharedGoals={boot?.sharedGoals}
+          catalogos={catalogos}
+          disponibles={disponibles}
           onRefreshData={loadAllData}
         />
       ) : (
@@ -372,6 +375,7 @@ export default function App() {
               disponibles={disponibles}
               dashboard={dashboard}
               savingsGoals={dashboard?.savings_goals || []}
+              sharedGoals={boot?.sharedGoals?.items || []}
               showAmounts={showAmounts}
               onRefreshData={refresh}
             />
@@ -408,6 +412,7 @@ export default function App() {
             <DashboardPage
               loading={loading}
               dashboard={dashboard}
+              sharedGoals={boot?.sharedGoals?.items || []}
               deudas={deudas}
               tcBalances={tcBalances?.items || []}
               showAmounts={showAmounts}

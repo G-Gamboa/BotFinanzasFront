@@ -1,6 +1,7 @@
 import VaultPage from './VaultPage'
 import { TAB_LABELS, availableTabKeys } from '../components/NavTabs'
 import Icon from '../components/Icons'
+import SharedGoalsPanel from '../components/SharedGoalsPanel'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
@@ -54,6 +55,9 @@ export default function ConfiguracionPage({
   canPrivate,
   isAdmin = false,
   onRefreshData,
+  sharedGoals,
+  catalogos,
+  disponibles,
 }) {
   const [accountForm, setAccountForm] = useState(initialAccountForm)
   const [categoryForm, setCategoryForm] = useState(initialCategoryForm)
@@ -1026,6 +1030,15 @@ export default function ConfiguracionPage({
           </div>
         </form>
       </Panel>
+
+      <SharedGoalsPanel
+        userId={userId}
+        api={api}
+        sharedGoals={sharedGoals}
+        catalogos={catalogos}
+        disponibles={disponibles}
+        onRefreshData={onRefreshData}
+      />
 
       <Panel title="Preferencias">
         <form className="form-grid" onSubmit={submitPreferences}>

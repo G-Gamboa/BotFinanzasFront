@@ -28,7 +28,7 @@ const initialForm = {
   savingsGoalId: '',
 }
 
-export default function MovimientosPage({ userId, api, catalogos, disponibles, dashboard, savingsGoals = [], showAmounts = true, onRefreshData }) {
+export default function MovimientosPage({ userId, api, catalogos, disponibles, dashboard, savingsGoals = [], sharedGoals = [], showAmounts = true, onRefreshData }) {
   const [form, setForm] = useState(initialForm)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -106,8 +106,10 @@ export default function MovimientosPage({ userId, api, catalogos, disponibles, d
   const generalSavingsBalance = useMemo(() => {
     const totalAhorro = ahorroDisponibles.reduce((s, i) => s + Number(i.saldo || 0), 0)
     const totalGoals  = (savingsGoals || []).reduce((s, g) => s + Number(g.current_amount || 0), 0)
-    return Math.max(0, totalAhorro - totalGoals)
-  }, [ahorroDisponibles, savingsGoals])
+    // Lo aportado a metas conjuntas también está apartado: se retira desde la meta
+    const totalShared = (sharedGoals || []).reduce((s, g) => s + Math.max(0, Number(g.my_amount || 0)), 0)
+    return Math.max(0, totalAhorro - totalGoals - totalShared)
+  }, [ahorroDisponibles, savingsGoals, sharedGoals])
 
   const prestamosDisponibles = useMemo(
     () => disponibles?.prestamos_por_persona || [],

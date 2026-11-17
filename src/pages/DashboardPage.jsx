@@ -3,6 +3,7 @@ import Icon from '../components/Icons'
 import LoadingBlock from '../components/LoadingBlock'
 import EmptyState from '../components/EmptyState'
 import { q, usd } from '../lib/format'
+import { SharedGoalBar } from '../components/SharedGoalsPanel'
 
 function Line({ label, value, className = '' }) {
   return (
@@ -13,7 +14,7 @@ function Line({ label, value, className = '' }) {
   )
 }
 
-export default function DashboardPage({ loading, dashboard, deudas, tcBalances = [], showAmounts }) {
+export default function DashboardPage({ loading, dashboard, sharedGoals = [], deudas, tcBalances = [], showAmounts }) {
   if (loading && !dashboard) return <LoadingBlock text="Cargando resumen..." />
   if (!dashboard?.networth) return <EmptyState text="No hay datos para mostrar." />
 
@@ -59,7 +60,7 @@ export default function DashboardPage({ loading, dashboard, deudas, tcBalances =
 
         <Panel title="Ahorro">
           <div className="rows">
-            {ahorro.length === 0 ? <p className="helper-text">No tienes ahorro distribuido.</p> : null}
+            {ahorro.length === 0 && sharedGoals.length === 0 ? <p className="helper-text">No tienes ahorro distribuido.</p> : null}
             {ahorro.map((item) => <Line key={item.cuenta} label={item.cuenta} value={m(item.saldo)} />)}
             {ahorro.length > 0 ? <Line label="Total ahorrado" value={m(nw.ahorro_total_gtq)} className="total" /> : null}
             {goals.map((g) => {
@@ -75,6 +76,18 @@ export default function DashboardPage({ loading, dashboard, deudas, tcBalances =
                 </div>
               )
             })}
+            {sharedGoals.map((g) => (
+              <div key={`shared-${g.id}`} className="item-card">
+                <div className="item-head">
+                  <strong className="title-with-icon"><Icon name="users" /> {g.name}</strong>
+                  <span className="helper-text">{showAmounts ? `${Math.round(g.pct * 100)}%` : '••%'}</span>
+                </div>
+                <SharedGoalBar goal={g} />
+                <span className="helper-text">
+                  {m(g.total)} de {m(g.target_amount)} entre ambos · tu parte {m(g.my_amount)}
+                </span>
+              </div>
+            ))}
           </div>
         </Panel>
 

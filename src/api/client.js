@@ -67,6 +67,18 @@ export const api = {
   deleteNotaCalendario: (noteId, userId) =>
     request(`/calendario/notas/${noteId}?telegram_user_id=${userId}`, { method: 'DELETE' }),
 
+  // ── Metas conjuntas ──────────────────────────────────────────────────────
+  postMetaConjunta: (payload) =>
+    request('/metas-conjuntas', { method: 'POST', body: JSON.stringify(payload) }),
+  patchMetaConjunta: (goalId, payload) =>
+    request(`/metas-conjuntas/${goalId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteMetaConjunta: (goalId, userId) =>
+    request(`/metas-conjuntas/${goalId}?telegram_user_id=${userId}`, { method: 'DELETE' }),
+  aportarMetaConjunta: (goalId, payload) =>
+    request(`/metas-conjuntas/${goalId}/aportar`, { method: 'POST', body: JSON.stringify(payload) }),
+  retirarMetaConjunta: (goalId, payload) =>
+    request(`/metas-conjuntas/${goalId}/retirar`, { method: 'POST', body: JSON.stringify(payload) }),
+
   getHealth: () => request('/health'),
   getCatalogos: (userId) => request(`/catalogos/${userId}`),
   getDisponibles: (userId) => request(`/disponibles/${userId}`),

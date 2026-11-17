@@ -1633,3 +1633,33 @@ button.row-line {
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
+
+/* ── Metas conjuntas ──────────────────────────────────────────────────────── */
+
+.goal-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--text-muted) 22%, transparent);
+}
+
+.goal-bar span { height: 100%; }
+.goal-bar .mine, .sw.mine { background: var(--primary); }
+.goal-bar .theirs, .sw.theirs { background: var(--accent); }
+
+.goal-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.goal-key span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.item-actions { align-items: center; }
