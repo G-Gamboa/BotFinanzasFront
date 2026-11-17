@@ -67,6 +67,14 @@ export const api = {
   deleteNotaCalendario: (noteId, userId) =>
     request(`/calendario/notas/${noteId}?telegram_user_id=${userId}`, { method: 'DELETE' }),
 
+  // ── Planes de cobro de préstamos ─────────────────────────────────────────
+  postPlanCobro: (payload) =>
+    request('/prestamos/planes-cobro', { method: 'POST', body: JSON.stringify(payload) }),
+  deletePlanCobro: (planId, userId) =>
+    request(`/prestamos/planes-cobro/${planId}?telegram_user_id=${userId}`, { method: 'DELETE' }),
+  confirmarCobro: (payload) =>
+    request('/calendario/confirmar-cobro', { method: 'POST', body: JSON.stringify(payload) }),
+
   // ── Metas conjuntas ──────────────────────────────────────────────────────
   postMetaConjunta: (payload) =>
     request('/metas-conjuntas', { method: 'POST', body: JSON.stringify(payload) }),

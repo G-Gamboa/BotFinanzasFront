@@ -14,8 +14,14 @@ const FREQ_LABELS = {
   none: 'Sin fecha fija',
 }
 
+const COLLECT_FREQ = {
+  weekly: 'cada semana',
+  biweekly: 'cada 2 semanas',
+  monthly: 'cada mes',
+}
+
 export default function DeudasPage({
-  userId, api, catalogos, disponibles, deudas, prestamos, canUsePrestamos, onRefreshData,
+  userId, api, catalogos, disponibles, deudas, cobros, canUsePrestamos, onRefreshData,
 }) {
   const [section, setSection] = useState('debo')
   const [message, setMessage] = useState('')
@@ -51,7 +57,7 @@ export default function DeudasPage({
       {section === 'debo' || !canUsePrestamos ? (
         <DebtsSection userId={userId} api={api} deudas={deudas} liquidAccounts={liquidAccounts} onDone={notify} onError={fail} />
       ) : (
-        <LoansSection userId={userId} api={api} catalogos={catalogos} prestamos={prestamos}
+        <LoansSection userId={userId} api={api} catalogos={catalogos} cobros={cobros}
           liquidAccounts={liquidAccounts} onDone={notify} onError={fail} />
       )}
     </div>
@@ -264,17 +270,42 @@ function PayDebtSheet({ debt, userId, api, liquidAccounts, onClose, onDone }) {
 
 // ── Lo que me deben ──────────────────────────────────────────────────────────
 
-function LoansSection({ userId, api, catalogos, prestamos, liquidAccounts, onDone, onError }) {
-  const people = useMemo(() => (catalogos?.loan_people || []).map((p) => p.name), [catalogos])
+function LoansSection({ userId, api, catalogos, cobros, liquidAccounts, onDone, onError }) {
+  const peopleList = useMemo(() => catalogos?.loan_people || [], [catalogos])
+  const people = useMemo(() => peopleList.map((p) => p.name), [peopleList])
   const creditCards = useMemo(() => catalogos?.accounts?.credit_cards || [], [catalogos])
-  const items = prestamos?.items || []
-  const total = items.reduce((s, p) => s + Number(p.total_balance || 0), 0)
+
+  // Lo que te deben, agrupado por persona; incluye visacuotas de préstamo aún sin cargar
+  const items = useMemo(() => {
+    const byPerson = new Map()
+    ;(cobros?.items || []).forEach((c) => {
+      if (!byPerson.has(c.person)) byPerson.set(c.person, { person: c.person, total: 0, concepts: [] })
+      const p = byPerson.get(c.person)
+      p.total += Number(c.balance || 0)
+      p.concepts.push(c)
+    })
+    return [...byPerson.values()]
+  }, [cobros])
+  const total = items.reduce((s, p) => s + p.total, 0)
 
   const emptyLoan = () => ({
     date: getGuatemalaDateString(), source: 'account', account: liquidAccounts[0]?.name || '',
     cardId: String(creditCards[0]?.id || ''), person: people[0] || '', amount: '', note: '',
+    inInstallments: false, installment: '', frequency: 'monthly', firstDate: '',
   })
   const [collecting, setCollecting] = useState(null)
+  const [planning, setPlanning] = useState(null)
+  const [removing, setRemoving] = useState(null)
+
+  async function removePlan(concept) {
+    try {
+      await api.deletePlanCobro(concept.plan.id, userId)
+      setRemoving(null)
+      onDone('Plan de cobro quitado.')
+    } catch (err) {
+      onError(err)
+    }
+  }
   const [form, setForm] = useState(emptyLoan)
   const [saving, setSaving] = useState(false)
   const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
@@ -297,6 +328,17 @@ function LoansSection({ userId, api, catalogos, prestamos, liquidAccounts, onDon
       if (fromCard) payload.credit_card_account_id = Number(form.cardId || creditCards[0]?.id)
       else payload.source_account_name = form.account || liquidAccounts[0]?.name
       await api.postMovimiento(payload)
+      if (form.inInstallments) {
+        const person = peopleList.find((p) => p.name === (form.person || people[0]))
+        await api.postPlanCobro({
+          telegram_user_id: Number(userId),
+          loan_person_id: person.id,
+          concept: form.note.trim() || null,
+          installment_amount: Number(form.installment),
+          frequency: form.frequency,
+          next_due_date: form.firstDate,
+        })
+      }
       setForm(emptyLoan())
       onDone(fromCard ? 'Préstamo desde tarjeta registrado.' : 'Préstamo registrado.')
     } catch (err) {
@@ -319,20 +361,48 @@ function LoansSection({ userId, api, catalogos, prestamos, liquidAccounts, onDon
               <div className="item-card" key={person.person}>
                 <div className="item-head">
                   <strong>{person.person}</strong>
-                  <strong>{q(person.total_balance)}</strong>
+                  <strong>{q(person.total)}</strong>
                 </div>
-                {(person.concepts || []).map((c) => (
-                  <div className="row-line" key={c.concept}>
-                    <span>
-                      {c.concept}
-                      {c.is_tc_loan ? <span className="tc-badge" title={c.tc_account_name || 'Tarjeta'}>TC</span> : null}
-                    </span>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                {person.concepts.map((c) => (
+                  <div className="loan-concept" key={c.concept}>
+                    <div className="item-head">
+                      <span>
+                        {c.concept}
+                        {c.is_tc ? <span className="tc-badge" title={c.card_name || 'Tarjeta'}>TC</span> : null}
+                      </span>
                       <strong>{q(c.balance)}</strong>
-                      <button type="button" className="confirm-btn" onClick={() => setCollecting({ person: person.person, ...c })}>
-                        Cobrar
-                      </button>
-                    </span>
+                    </div>
+                    {c.upcoming > 0 ? (
+                      <span className="helper-text">Más {q(c.upcoming)} en visacuotas que aún no se cargan</span>
+                    ) : null}
+                    {c.plan ? (
+                      <span className="helper-text">
+                        Cobro de {q(c.plan.installment_amount)} {COLLECT_FREQ[c.plan.frequency]} · próximo {fmtDate(c.plan.next_due_date)}
+                      </span>
+                    ) : null}
+                    <div className="item-actions">
+                      {removing === c.concept + person.person ? (
+                        <>
+                          <button type="button" className="link-btn danger" onClick={() => removePlan(c)}>Sí, quitar plan</button>
+                          <button type="button" className="link-btn" onClick={() => setRemoving(null)}>Cancelar</button>
+                        </>
+                      ) : c.plan ? (
+                        <>
+                          <button type="button" className="link-btn" onClick={() => setPlanning(c)}>Editar plan</button>
+                          <button type="button" className="link-btn" onClick={() => setRemoving(c.concept + person.person)}>Quitar plan</button>
+                        </>
+                      ) : (
+                        <button type="button" className="ghost-btn" onClick={() => setPlanning(c)}>
+                          {c.is_visacuota ? 'Poner fecha de cobro' : 'Plan de cobro'}
+                        </button>
+                      )}
+                      {c.balance > 0 ? (
+                        <button type="button" className="confirm-btn"
+                          onClick={() => setCollecting({ person: c.person, concept: c.concept, balance: c.balance, is_tc_loan: c.is_tc, tc_account_name: c.card_name })}>
+                          Cobrar
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -390,6 +460,30 @@ function LoansSection({ userId, api, catalogos, prestamos, liquidAccounts, onDon
                 <span>Concepto</span>
                 <input value={form.note} onChange={(e) => set('note', e.target.value)} placeholder="Vacío se guarda como General" />
               </label>
+              <label className="full-span check-label">
+                <input type="checkbox" checked={form.inInstallments} onChange={(e) => set('inInstallments', e.target.checked)} />
+                Me lo paga en cuotas
+              </label>
+              {form.inInstallments ? (
+                <>
+                  <label>
+                    <span>Cuota</span>
+                    <input type="number" min="0.01" step="0.01" value={form.installment} onChange={(e) => set('installment', e.target.value)} required />
+                  </label>
+                  <label>
+                    <span>Cada cuánto</span>
+                    <select value={form.frequency} onChange={(e) => set('frequency', e.target.value)}>
+                      <option value="monthly">Cada mes</option>
+                      <option value="biweekly">Cada 2 semanas</option>
+                      <option value="weekly">Cada semana</option>
+                    </select>
+                  </label>
+                  <label className="full-span">
+                    <span>Primer cobro</span>
+                    <input type="date" value={form.firstDate} onChange={(e) => set('firstDate', e.target.value)} required />
+                  </label>
+                </>
+              ) : null}
               <small className="full-span helper-text">
                 {form.source === 'card'
                   ? 'El cargo queda en la tarjeta y la persona te debe el monto.'
@@ -405,12 +499,84 @@ function LoansSection({ userId, api, catalogos, prestamos, liquidAccounts, onDon
         </details>
       </section>
 
+      {planning ? (
+        <PlanSheet concept={planning} userId={userId} api={api}
+          onClose={() => setPlanning(null)}
+          onDone={() => { setPlanning(null); onDone('Plan de cobro guardado. Ya aparece en el Calendario.') }} />
+      ) : null}
+
       {collecting ? (
         <CollectSheet loan={collecting} userId={userId} api={api} liquidAccounts={liquidAccounts}
           onClose={() => setCollecting(null)}
           onDone={() => { setCollecting(null); onDone('Cobro registrado correctamente.') }} />
       ) : null}
     </>
+  )
+}
+
+function PlanSheet({ concept, userId, api, onClose, onDone }) {
+  const [form, setForm] = useState({
+    amount: String(concept.plan?.installment_amount ?? concept.default_amount ?? ''),
+    frequency: concept.plan?.frequency || 'monthly',
+    date: concept.plan?.next_due_date || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
+  const pending = Number(concept.balance || 0) + Number(concept.upcoming || 0)
+
+  async function submit(e) {
+    e.preventDefault()
+    setSaving(true); setError('')
+    try {
+      await api.postPlanCobro({
+        telegram_user_id: Number(userId),
+        loan_person_id: concept.person_id,
+        concept: concept.concept === 'General' ? null : concept.concept,
+        installment_amount: Number(form.amount),
+        frequency: form.frequency,
+        next_due_date: form.date,
+      })
+      onDone()
+    } catch (err) {
+      setError(err.message || 'No se pudo guardar el plan.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Sheet title="Plan de cobro" subtitle={`${concept.person} · ${concept.concept} · por cobrar ${q(pending)}`} onClose={onClose}>
+      {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
+      <form className="form-grid" onSubmit={submit}>
+        <label>
+          <span>Cuota</span>
+          <input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.amount} onChange={(e) => set('amount', e.target.value)} required />
+        </label>
+        <label>
+          <span>Cada cuánto</span>
+          <select value={form.frequency} onChange={(e) => set('frequency', e.target.value)}>
+            <option value="monthly">Cada mes</option>
+            <option value="biweekly">Cada 2 semanas</option>
+            <option value="weekly">Cada semana</option>
+          </select>
+        </label>
+        <label className="full-span">
+          <span>Próximo cobro</span>
+          <input type="date" value={form.date} onChange={(e) => set('date', e.target.value)} required />
+        </label>
+        <small className="full-span helper-text">
+          {concept.is_tc
+            ? `Lo que cobres se abona directo a ${concept.card_name || 'la tarjeta'} y cuenta para cubrir su pago.`
+            : 'Lo que cobres entra a tu cuenta y suma a tu saldo esperado.'}
+          {' '}El Calendario muestra cobros hasta cubrir lo que te deben.
+        </small>
+        <div className="full-span form-actions">
+          <button className="primary-btn" type="submit" disabled={saving || !form.amount || !form.date}>
+            {saving ? 'Guardando...' : 'Guardar plan'}
+          </button>
+        </div>
+      </form>
+    </Sheet>
   )
 }
 

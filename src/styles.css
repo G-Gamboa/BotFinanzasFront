@@ -1261,6 +1261,7 @@ button.row-line {
 /* ── Calendario ───────────────────────────────────────────────────────────── */
 
 .k-ingreso { --k: var(--success); }
+.k-cobro { --k: #2dd4bf; }
 .k-abono { --k: #5b8def; }
 .k-pago { --k: var(--warning); }
 .k-cargo_tc, .k-tarjeta { --k: #a78bfa; }
@@ -1663,3 +1664,10 @@ button.row-line {
 }
 
 .item-actions { align-items: center; }
+
+.loan-concept {
+  display: grid;
+  gap: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}

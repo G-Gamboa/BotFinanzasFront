@@ -439,7 +439,7 @@ export default function App() {
               catalogos={catalogos}
               disponibles={disponibles}
               deudas={deudas}
-              prestamos={dashboard?.prestamos_resumen}
+              cobros={boot?.cobros}
               canUsePrestamos={canUsePrestamos}
               onRefreshData={refresh}
             />

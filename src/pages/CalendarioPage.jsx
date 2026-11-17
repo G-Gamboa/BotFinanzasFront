@@ -8,6 +8,7 @@ import { capitalize, longDate, money, monthName, q, shortDate, usd } from '../li
 
 const KIND_LABEL = {
   ingreso: 'Ingreso',
+  cobro: 'Cobro de préstamo',
   pago: 'Pago',
   abono: 'Abono a tarjeta',
   cargo_tc: 'Cargo a tarjeta',
@@ -157,6 +158,7 @@ export default function CalendarioPage({
   function onAction(row) {
     if (row.action === 'abonar') return setSheet({ type: 'abonar', row })
     if (row.source === 'debt') return setSheet({ type: 'debt', row })
+    if (row.source === 'collection') return setSheet({ type: 'cobro', row })
     if (row.kind === 'recordatorio') return markReminder(row, true)
     return setSheet({ type: 'confirm', row })
   }
@@ -399,6 +401,12 @@ export default function CalendarioPage({
       ) : null}
       {sheet?.type === 'debt' ? (
         <DebtSheet
+          row={sheet.row} userId={userId} api={api} today={today} liquidAccounts={liquidAccounts}
+          onClose={() => setSheet(null)} onDone={afterChange}
+        />
+      ) : null}
+      {sheet?.type === 'cobro' ? (
+        <CobroSheet
           row={sheet.row} userId={userId} api={api} today={today} liquidAccounts={liquidAccounts}
           onClose={() => setSheet(null)} onDone={afterChange}
         />
@@ -762,6 +770,80 @@ function DebtSheet({ row, userId, api, today, liquidAccounts, onClose, onDone })
           <button className="primary-btn" type="submit" disabled={saving}>
             {saving ? 'Guardando...' : 'Confirmar y registrar'}
           </button>
+        </div>
+      </form>
+    </Sheet>
+  )
+}
+
+function CobroSheet({ row, userId, api, today, liquidAccounts, onClose, onDone }) {
+  const isTc = Boolean(row.credit_card_account_id)
+  const charged = Number(row.balance || 0) > 0.005
+  const [form, setForm] = useState({
+    amount: Math.min(Number(row.amount || 0), Number(row.balance || 0) || Number(row.amount || 0)).toFixed(2),
+    date: defaultPayDate(row, today),
+    account: liquidAccounts.find((a) => a.name !== 'Efectivo')?.name || liquidAccounts[0]?.name || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
+
+  async function send(createRecord) {
+    setSaving(true); setError('')
+    try {
+      await api.confirmarCobro({
+        telegram_user_id: Number(userId),
+        plan_id: row.plan_id,
+        payment_date: form.date,
+        amount: createRecord ? Number(form.amount) : null,
+        account_name: createRecord && !isTc ? form.account : null,
+        create_record: createRecord,
+      })
+      await onDone(createRecord ? 'Cobro registrado.' : 'Cobro marcado como hecho, sin registrar otro movimiento.')
+    } catch (err) {
+      setError(err.message || 'No se pudo registrar el cobro.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Sheet title="Confirmar cobro" subtitle={`${row.concept} · le queda ${q(row.balance)}`} onClose={onClose}>
+      {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
+      <form className="form-grid" onSubmit={(e) => { e.preventDefault(); send(true) }}>
+        <label>
+          <span>Monto</span>
+          <input type="number" min="0.01" step="0.01" max={row.balance || undefined} inputMode="decimal"
+            value={form.amount} onChange={(e) => set('amount', e.target.value)} required disabled={!charged} />
+        </label>
+        <label>
+          <span>Fecha</span>
+          <input type="date" value={form.date} onChange={(e) => set('date', e.target.value)} required />
+        </label>
+        {isTc ? (
+          <small className="full-span helper-text">Se abona directo a {row.credit_card_name || 'la tarjeta'}.</small>
+        ) : (
+          <label className="full-span">
+            <span>Entra a</span>
+            <select value={form.account} onChange={(e) => set('account', e.target.value)} required>
+              {liquidAccounts.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
+            </select>
+          </label>
+        )}
+        {!charged ? (
+          <small className="full-span helper-text">
+            La visacuota de este cobro todavía no se carga a la tarjeta, así que aún no hay saldo que registrar.
+          </small>
+        ) : null}
+        <div className="full-span form-actions">
+          <button className="primary-btn" type="submit" disabled={saving || !charged || !form.amount}>
+            {saving ? 'Guardando...' : 'Confirmar y registrar'}
+          </button>
+        </div>
+        <div className="full-span sheet-alt">
+          <button type="button" className="ghost-btn" disabled={saving} onClick={() => send(false)}>
+            Confirmar sin registrar
+          </button>
+          <small className="helper-text">Úsalo si ya registraste el cobro desde Deudas y préstamos: pasa al siguiente cobro sin crear otro.</small>
         </div>
       </form>
     </Sheet>

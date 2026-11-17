@@ -1,5 +1,6 @@
 const PATHS = {
   ingreso: <><path d="M12 4v11" /><path d="m7.5 10.5 4.5 4.5 4.5-4.5" /><path d="M5 20h14" /></>,
+  cobro: <><circle cx="9" cy="8" r="3.2" /><path d="M3 19.5a6 6 0 0 1 10.5-4" /><path d="M18 12v8" /><path d="m15 17 3 3 3-3" /></>,
   pago: <><path d="M12 20V9" /><path d="m7.5 13.5 4.5-4.5 4.5 4.5" /><path d="M5 4h14" /></>,
   abono: <><rect x="3" y="5.5" width="18" height="13" rx="2" /><path d="M3 10h18" /><path d="M7 15h4" /></>,
   card: <><rect x="3" y="5.5" width="18" height="13" rx="2" /><path d="M3 10h18" /><path d="M7 15h4" /></>,
