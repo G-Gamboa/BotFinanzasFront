@@ -1707,3 +1707,43 @@ button.row-line {
 .icon-btn.spinning svg { animation: bf-spin 0.9s linear infinite; }
 @keyframes bf-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .icon-btn.spinning svg { animation: none; } }
+
+/* ── Revisión de estado de cuenta ── */
+.stmt-drop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1.5px dashed var(--border-soft);
+  border-radius: 14px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.stmt-drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.stmt-drop:focus-within { outline: 2px solid var(--color-primary, #4f8ef7); outline-offset: 2px; }
+.stmt-drop.busy { opacity: 0.6; cursor: progress; }
+.stmt-result { display: grid; gap: 14px; margin-top: 10px; }
+.stmt-group { display: grid; gap: 6px; }
+.stmt-group h4 { margin: 0; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
+.stmt-count {
+  font-size: 0.75rem; font-weight: 700; padding: 1px 8px; border-radius: 999px;
+  background: var(--card-soft); border: 1px solid var(--border-soft);
+}
+.stmt-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.stmt-line, .stmt-match {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: baseline;
+  padding: 6px 0; border-bottom: 1px solid var(--border-soft); font-size: 0.88rem;
+}
+.stmt-match { grid-template-columns: 1fr auto; }
+.stmt-date { opacity: 0.6; font-variant-numeric: tabular-nums; }
+.stmt-desc { min-width: 0; overflow-wrap: anywhere; }
+.stmt-amt { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stmt-amt.pos { color: var(--color-success, #43a047); }
+.stmt-tag {
+  margin-left: 6px; font-size: 0.72rem; padding: 1px 6px; border-radius: 6px;
+  border: 1px solid var(--border-soft); opacity: 0.8;
+}
+.stmt-contado { display: flex; flex-wrap: wrap; gap: 18px; }
+.stmt-contado div { display: grid; gap: 2px; }
+.stmt-contado span { font-size: 0.75rem; opacity: 0.65; }
+.stmt-tally { display: flex; flex-wrap: wrap; gap: 14px; margin: 0; font-size: 0.88rem; }

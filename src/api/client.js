@@ -74,6 +74,8 @@ export const api = {
     request(`/prestamos/planes-cobro/${planId}?telegram_user_id=${userId}`, { method: 'DELETE' }),
   confirmarCobro: (payload) =>
     request('/calendario/confirmar-cobro', { method: 'POST', body: JSON.stringify(payload) }),
+  revisarEstadoCuenta: (cardId, payload) =>
+    request(`/tc/${cardId}/estado-cuenta`, { method: 'POST', body: JSON.stringify(payload) }),
   ajustarContado: (cardId, payload) =>
     request(`/tc/${cardId}/contado`, { method: 'POST', body: JSON.stringify(payload) }),
 

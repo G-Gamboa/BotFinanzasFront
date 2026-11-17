@@ -3,6 +3,7 @@ import Panel from '../components/Panel'
 import MessageBanner from '../components/MessageBanner'
 import Sheet from '../components/Sheet'
 import Icon from '../components/Icons'
+import StatementSheet from '../components/StatementSheet'
 import { getGuatemalaDateString } from '../utils/dates'
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -95,6 +96,7 @@ export default function TarjetasPage({
 
   const [payOpen, setPayOpen] = useState(false)
   const [payError, setPayError] = useState('')
+  const [reviewing, setReviewing] = useState(null)
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
@@ -493,12 +495,22 @@ export default function TarjetasPage({
                   >
                     Abonar
                   </button>
+                  {tc.billing_close_day ? (
+                    <button type="button" className="link-btn" onClick={() => setReviewing(tc)}>
+                      Revisar estado de cuenta
+                    </button>
+                  ) : null}
                 </div>
               </div>
             )
           })}
         </div>
       </Panel>
+
+      {reviewing ? (
+        <StatementSheet card={reviewing} userId={userId} api={api}
+          onClose={() => setReviewing(null)} onApplied={() => onRefreshData?.()} />
+      ) : null}
 
       {/* ── Abonar a tarjeta ── */}
       {payOpen ? (
