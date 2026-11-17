@@ -262,7 +262,7 @@ export default function ConfiguracionPage({
       await api.patchDeuda(selectedDebtId, {
         name: debtForm.name,
         creditor: debtForm.creditor,
-        due_date: debtForm.due_date,
+        due_date: debtForm.due_date || null,
         installment_amount: Number(debtForm.installment_amount),
         total_installments: Number(debtForm.total_installments),
         payment_frequency: debtForm.payment_frequency,

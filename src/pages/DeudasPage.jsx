@@ -94,7 +94,7 @@ function DebtsSection({ userId, api, deudas, liquidAccounts, onDone, onError }) 
         telegram_user_id: Number(userId),
         name: form.name,
         creditor: form.creditor,
-        due_date: form.dueDate,
+        due_date: form.dueDate || null,
         installment_amount: Number(form.installmentAmount),
         total_installments: Number(form.totalInstallments),
         paid_installments: Number(form.paidInstallments || 0),
@@ -131,7 +131,7 @@ function DebtsSection({ userId, api, deudas, liquidAccounts, onDone, onError }) 
                     <span>{d.paid_installments} de {d.total_installments} cuotas</span>
                     <span>Cuota {q(d.installment_amount)}</span>
                     <span>{FREQ_LABELS[d.payment_frequency] ?? d.payment_frequency}</span>
-                    <span>Próximo pago {fmtDate(d.due_date)}</span>
+                    <span>{d.due_date ? `Próximo pago ${fmtDate(d.due_date)}` : 'Sin fecha de pago'}</span>
                     <span>{d.payment_account ? `Se paga desde ${d.payment_account}` : 'Sin cuenta de pago'}</span>
                   </div>
                   <div className="item-actions">
@@ -157,19 +157,7 @@ function DebtsSection({ userId, api, deudas, liquidAccounts, onDone, onError }) 
               <span>Acreedor</span>
               <input value={form.creditor} onChange={(e) => set('creditor', e.target.value)} required />
             </label>
-            <label>
-              <span>Próximo pago</span>
-              <input type="date" value={form.dueDate} onChange={(e) => set('dueDate', e.target.value)} required />
-            </label>
-            <label>
-              <span>Frecuencia</span>
-              <select value={form.paymentFrequency} onChange={(e) => set('paymentFrequency', e.target.value)}>
-                <option value="monthly">Mensual</option>
-                <option value="biweekly">Quincenal</option>
-                <option value="weekly">Semanal</option>
-                <option value="none">Sin fecha fija</option>
-              </select>
-            </label>
+            <DueFields form={form} setForm={setForm} />
             <label>
               <span>Cuota</span>
               <input type="number" min="0.01" step="0.01" value={form.installmentAmount} onChange={(e) => set('installmentAmount', e.target.value)} required />
@@ -213,11 +201,47 @@ function DebtsSection({ userId, api, deudas, liquidAccounts, onDone, onError }) 
   )
 }
 
+// Fecha y frecuencia de una deuda: "Sin fecha fija" deja la fecha vacía por defecto
+function DueFields({ form, setForm }) {
+  const undated = form.paymentFrequency === 'none'
+  function changeFrequency(value) {
+    setForm((prev) => ({
+      ...prev,
+      paymentFrequency: value,
+      dueDate: value === 'none' ? '' : (prev.dueDate || getGuatemalaDateString()),
+    }))
+  }
+  return (
+    <>
+      <label>
+        <span>Frecuencia</span>
+        <select value={form.paymentFrequency} onChange={(e) => changeFrequency(e.target.value)}>
+          <option value="monthly">Mensual</option>
+          <option value="biweekly">Quincenal</option>
+          <option value="weekly">Semanal</option>
+          <option value="none">Sin fecha fija</option>
+        </select>
+      </label>
+      <label>
+        <span>{undated ? 'Fecha de pago (opcional)' : 'Próximo pago'}</span>
+        <input type="date" value={form.dueDate}
+          onChange={(e) => setForm((prev) => ({ ...prev, dueDate: e.target.value }))}
+          required={!undated} />
+      </label>
+      {undated ? (
+        <small className="full-span helper-text">
+          Sin fecha, la deuda aparece en el calendario bajo "Sin fecha" y no se descuenta de tu saldo esperado.
+        </small>
+      ) : null}
+    </>
+  )
+}
+
 function EditDebtSheet({ debt, api, liquidAccounts, onClose, onDone }) {
   const [form, setForm] = useState({
     name: debt.name,
     creditor: debt.creditor,
-    dueDate: debt.due_date,
+    dueDate: debt.due_date || '',
     installmentAmount: String(debt.installment_amount),
     totalInstallments: String(debt.total_installments),
     paymentFrequency: debt.payment_frequency || 'monthly',
@@ -234,7 +258,7 @@ function EditDebtSheet({ debt, api, liquidAccounts, onClose, onDone }) {
       await api.patchDeuda(debt.id, {
         name: form.name,
         creditor: form.creditor,
-        due_date: form.dueDate,
+        due_date: form.dueDate || null,
         installment_amount: Number(form.installmentAmount),
         total_installments: Number(form.totalInstallments),
         payment_frequency: form.paymentFrequency,
@@ -259,19 +283,7 @@ function EditDebtSheet({ debt, api, liquidAccounts, onClose, onDone }) {
           <span>Acreedor</span>
           <input value={form.creditor} onChange={(e) => set('creditor', e.target.value)} required />
         </label>
-        <label>
-          <span>Próximo pago</span>
-          <input type="date" value={form.dueDate} onChange={(e) => set('dueDate', e.target.value)} required />
-        </label>
-        <label>
-          <span>Frecuencia</span>
-          <select value={form.paymentFrequency} onChange={(e) => set('paymentFrequency', e.target.value)}>
-            <option value="monthly">Mensual</option>
-            <option value="biweekly">Quincenal</option>
-            <option value="weekly">Semanal</option>
-            <option value="none">Sin fecha fija</option>
-          </select>
-        </label>
+        <DueFields form={form} setForm={setForm} />
         <label>
           <span>Cuota</span>
           <input type="number" min="0.01" step="0.01" value={form.installmentAmount} onChange={(e) => set('installmentAmount', e.target.value)} required />
