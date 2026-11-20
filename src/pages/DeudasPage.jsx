@@ -4,6 +4,7 @@ import EmptyState from '../components/EmptyState'
 import MessageBanner from '../components/MessageBanner'
 import Sheet from '../components/Sheet'
 import Icon from '../components/Icons'
+import PaySourceFields, { SourceOptions, initialSource, quetzalCards, sourcePayload } from '../components/PaySource'
 import { getGuatemalaDateString } from '../utils/dates'
 import { fmtDate, q } from '../lib/format'
 
@@ -35,6 +36,7 @@ export default function DeudasPage({
     ;(disponibles?.saldos_liquidos || []).forEach((s) => { balances[s.cuenta] = Number(s.saldo || 0) })
     return (catalogos?.accounts?.liquid || []).map((a) => ({ name: a.name, balance: balances[a.name] ?? 0 }))
   }, [catalogos, disponibles])
+  const cards = useMemo(() => quetzalCards(catalogos?.accounts?.credit_cards), [catalogos])
 
   return (
     <div className="grid-page single-col">
@@ -55,7 +57,7 @@ export default function DeudasPage({
       {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
 
       {section === 'debo' || !canUsePrestamos ? (
-        <DebtsSection userId={userId} api={api} deudas={deudas} liquidAccounts={liquidAccounts} onDone={notify} onError={fail} />
+        <DebtsSection userId={userId} api={api} deudas={deudas} liquidAccounts={liquidAccounts} cards={cards} onDone={notify} onError={fail} />
       ) : (
         <LoansSection userId={userId} api={api} catalogos={catalogos} cobros={cobros}
           liquidAccounts={liquidAccounts} onDone={notify} onError={fail} />
@@ -71,7 +73,7 @@ const emptyDebt = () => ({
   totalInstallments: '', paidInstallments: '0', paymentFrequency: 'monthly', paymentAccount: '',
 })
 
-function DebtsSection({ userId, api, deudas, liquidAccounts, onDone, onError }) {
+function DebtsSection({ userId, api, deudas, liquidAccounts, cards, onDone, onError }) {
   const [paying, setPaying] = useState(null)
   const [editingDebt, setEditingDebt] = useState(null)
   const [form, setForm] = useState(emptyDebt)
@@ -169,8 +171,7 @@ function DebtsSection({ userId, api, deudas, liquidAccounts, onDone, onError }) 
             <label>
               <span>Se paga desde</span>
               <select value={form.paymentAccount} onChange={(e) => set('paymentAccount', e.target.value)}>
-                <option value="">Lo elijo al pagar</option>
-                {liquidAccounts.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
+                <SourceOptions liquidAccounts={liquidAccounts} cards={cards} />
               </select>
             </label>
             <label>
@@ -187,13 +188,13 @@ function DebtsSection({ userId, api, deudas, liquidAccounts, onDone, onError }) 
       </section>
 
       {editingDebt ? (
-        <EditDebtSheet debt={editingDebt} api={api} liquidAccounts={liquidAccounts}
+        <EditDebtSheet debt={editingDebt} api={api} liquidAccounts={liquidAccounts} cards={cards}
           onClose={() => setEditingDebt(null)}
           onDone={() => { setEditingDebt(null); onDone('Deuda actualizada. El calendario ya usa estos datos.') }} />
       ) : null}
 
       {paying ? (
-        <PayDebtSheet debt={paying} userId={userId} api={api} liquidAccounts={liquidAccounts}
+        <PayDebtSheet debt={paying} userId={userId} api={api} liquidAccounts={liquidAccounts} cards={cards}
           onClose={() => setPaying(null)}
           onDone={() => { setPaying(null); onDone('Pago registrado correctamente.') }} />
       ) : null}
@@ -237,7 +238,7 @@ function DueFields({ form, setForm }) {
   )
 }
 
-function EditDebtSheet({ debt, api, liquidAccounts, onClose, onDone }) {
+function EditDebtSheet({ debt, api, liquidAccounts, cards, onClose, onDone }) {
   const [form, setForm] = useState({
     name: debt.name,
     creditor: debt.creditor,
@@ -295,12 +296,13 @@ function EditDebtSheet({ debt, api, liquidAccounts, onClose, onDone }) {
         <label className="full-span">
           <span>Se paga desde</span>
           <select value={form.paymentAccount} onChange={(e) => set('paymentAccount', e.target.value)}>
-            <option value="">Lo elijo al pagar</option>
-            {liquidAccounts.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
+            <SourceOptions liquidAccounts={liquidAccounts} cards={cards} />
           </select>
         </label>
         <small className="full-span helper-text">
-          El calendario muestra cada cuota en su fecha con esta cuenta ya elegida, y la descuenta de tu saldo esperado.
+          {cards.some((c) => c.name === form.paymentAccount)
+            ? 'El calendario muestra cada cuota en su fecha para cargarla a la tarjeta; no se descuenta de tu efectivo.'
+            : 'El calendario muestra cada cuota en su fecha con esta cuenta ya elegida, y la descuenta de tu saldo esperado.'}
         </small>
         <div className="full-span form-actions">
           <button className="primary-btn" type="submit" disabled={saving}>
@@ -312,18 +314,15 @@ function EditDebtSheet({ debt, api, liquidAccounts, onClose, onDone }) {
   )
 }
 
-function PayDebtSheet({ debt, userId, api, liquidAccounts, onClose, onDone }) {
-  const bankAccounts = liquidAccounts.filter((a) => a.name !== 'Efectivo')
+function PayDebtSheet({ debt, userId, api, liquidAccounts, cards, onClose, onDone }) {
   const [form, setForm] = useState({
     date: getGuatemalaDateString(),
-    method: debt.payment_account === 'Efectivo' || !bankAccounts.length ? 'cash' : 'transfer',
-    account: debt.payment_account && debt.payment_account !== 'Efectivo' ? debt.payment_account : (bankAccounts[0]?.name || ''),
+    ...initialSource(debt.payment_account, liquidAccounts, cards),
     note: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
-  const source = form.method === 'transfer' ? form.account : 'Efectivo'
 
   async function submit(e) {
     e.preventDefault()
@@ -333,8 +332,7 @@ function PayDebtSheet({ debt, userId, api, liquidAccounts, onClose, onDone }) {
         telegram_user_id: Number(userId),
         debt_id: Number(debt.id),
         payment_date: form.date,
-        payment_method: form.method,
-        account_name: source,
+        ...sourcePayload(form),
         note: form.note || null,
       })
       onDone()
@@ -352,24 +350,7 @@ function PayDebtSheet({ debt, userId, api, liquidAccounts, onClose, onDone }) {
           <span>Fecha de pago</span>
           <input type="date" value={form.date} onChange={(e) => set('date', e.target.value)} required />
         </label>
-        <label>
-          <span>Sale por</span>
-          <select value={form.method} onChange={(e) => set('method', e.target.value)}>
-            <option value="cash">Efectivo</option>
-            {bankAccounts.length ? <option value="transfer">Transferencia</option> : null}
-          </select>
-        </label>
-        {form.method === 'transfer' ? (
-          <label className="full-span">
-            <span>Cuenta</span>
-            <select value={form.account} onChange={(e) => set('account', e.target.value)} required>
-              {bankAccounts.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
-            </select>
-          </label>
-        ) : null}
-        <small className="full-span helper-text">
-          Disponible en {source}: {q(liquidAccounts.find((a) => a.name === source)?.balance ?? 0)}
-        </small>
+        <PaySourceFields form={form} set={set} liquidAccounts={liquidAccounts} cards={cards} />
         <label className="full-span">
           <span>Nota</span>
           <input value={form.note} onChange={(e) => set('note', e.target.value)} placeholder="Opcional" />

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '../components/Icons'
 import Sheet from '../components/Sheet'
+import PaySourceFields, { initialSource, quetzalCards, sourcePayload } from '../components/PaySource'
 import MessageBanner from '../components/MessageBanner'
 import LoadingBlock from '../components/LoadingBlock'
 import { getGuatemalaDateString } from '../utils/dates'
@@ -469,7 +470,7 @@ export default function CalendarioPage({
       ) : null}
       {sheet?.type === 'debt' ? (
         <DebtSheet
-          row={sheet.row} userId={userId} api={api} today={today} liquidAccounts={liquidAccounts}
+          row={sheet.row} userId={userId} api={api} today={today} liquidAccounts={liquidAccounts} creditCards={creditCards}
           onClose={() => setSheet(null)} onDone={afterChange}
         />
       ) : null}
@@ -1076,17 +1077,15 @@ function ConfirmSheet({ row, userId, api, today, liquidAccounts, creditCards, ca
   )
 }
 
-function DebtSheet({ row, userId, api, today, liquidAccounts, onClose, onDone }) {
-  const bankAccounts = liquidAccounts.filter((a) => a.name !== 'Efectivo')
+function DebtSheet({ row, userId, api, today, liquidAccounts, creditCards, onClose, onDone }) {
+  const cards = quetzalCards(creditCards)
   const [form, setForm] = useState({
     date: defaultPayDate(row, today),
-    method: row.account_name === 'Efectivo' || !bankAccounts.length ? 'cash' : 'transfer',
-    account: row.account_name && row.account_name !== 'Efectivo' ? row.account_name : (bankAccounts[0]?.name || ''),
+    ...initialSource(row.credit_card_name || row.account_name, liquidAccounts, cards),
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
-  const source = form.method === 'transfer' ? form.account : 'Efectivo'
 
   async function submit(e) {
     e.preventDefault()
@@ -1094,9 +1093,9 @@ function DebtSheet({ row, userId, api, today, liquidAccounts, onClose, onDone })
     try {
       await api.confirmarCuotaDeuda({
         telegram_user_id: Number(userId), debt_id: row.debt_id, payment_date: form.date,
-        payment_method: form.method, account_name: form.method === 'transfer' ? form.account : 'Efectivo',
+        ...sourcePayload(form),
       })
-      await onDone('Cuota registrada.')
+      await onDone(form.method === 'credit_card' ? `Cuota registrada y cargada a ${form.card}.` : 'Cuota registrada.')
     } catch (err) {
       setError(err.message || 'No se pudo registrar.')
       setSaving(false)
@@ -1111,24 +1110,7 @@ function DebtSheet({ row, userId, api, today, liquidAccounts, onClose, onDone })
           <span>Fecha</span>
           <input type="date" value={form.date} onChange={(e) => set('date', e.target.value)} required />
         </label>
-        <label>
-          <span>Sale por</span>
-          <select value={form.method} onChange={(e) => set('method', e.target.value)}>
-            <option value="cash">Efectivo</option>
-            {bankAccounts.length ? <option value="transfer">Transferencia</option> : null}
-          </select>
-        </label>
-        {form.method === 'transfer' ? (
-          <label className="full-span">
-            <span>Cuenta</span>
-            <select value={form.account} onChange={(e) => set('account', e.target.value)}>
-              {bankAccounts.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
-            </select>
-          </label>
-        ) : null}
-        <small className="full-span helper-text">
-          Disponible en {source}: {q(liquidAccounts.find((a) => a.name === source)?.balance ?? 0)}
-        </small>
+        <PaySourceFields form={form} set={set} liquidAccounts={liquidAccounts} cards={cards} />
         <div className="full-span form-actions">
           <button className="primary-btn" type="submit" disabled={saving}>
             {saving ? 'Guardando...' : 'Confirmar y registrar'}
