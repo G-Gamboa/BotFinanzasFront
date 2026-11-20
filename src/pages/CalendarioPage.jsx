@@ -168,6 +168,12 @@ export default function CalendarioPage({
     }
   }
 
+  function onEdit(row) {
+    const series = [...(data?.fixed?.items || []), ...(data?.fixed?.incomes || [])]
+      .find((i) => i.item_id === row.item_id)
+    setSheet(series ? { type: 'editSeries', item: series, row } : { type: 'editOne', row })
+  }
+
   function onAction(row) {
     if (row.action === 'abonar') return setSheet({ type: 'abonar', row })
     if (row.source === 'debt') return setSheet({ type: 'debt', row })
@@ -214,6 +220,7 @@ export default function CalendarioPage({
     const amount = rowAmount(row, showAmounts)
     const isRemoving = removing === row.key
     const canRemove = row.source === 'scheduled' && !row.done
+    const canEdit = canRemove
     return (
       <li key={row.key} className={`cal-row k-${row.kind}${row.done ? ' done' : ''}${row.late ? ' late' : ''}`}>
         <span className="cal-ico"><Icon name={row.kind} /></span>
@@ -226,7 +233,10 @@ export default function CalendarioPage({
           </span>
           {row.note ? <span className="cal-note">{row.note}</span> : null}
           {canRemove && !isRemoving ? (
-            <button type="button" className="link-btn" onClick={() => setRemoving(row.key)}>Quitar</button>
+            <span className="cal-remove">
+              {canEdit ? <button type="button" className="link-btn" onClick={() => onEdit(row)}>Editar</button> : null}
+              <button type="button" className="link-btn" onClick={() => setRemoving(row.key)}>Quitar</button>
+            </span>
           ) : null}
           {isRemoving ? (
             <span className="cal-remove">
@@ -403,6 +413,18 @@ export default function CalendarioPage({
         ) : null}
       </section>
 
+      <IncomePanel
+        fixed={data.fixed}
+        userId={userId}
+        api={api}
+        creditCards={creditCards}
+        liquidAccounts={liquidAccounts}
+        categories={categories}
+        showAmounts={showAmounts}
+        onChanged={afterChange}
+        onError={fail}
+      />
+
       <FixedPanel
         fixed={data.fixed}
         userId={userId}
@@ -425,6 +447,18 @@ export default function CalendarioPage({
       />
 
       <NotesBlock userId={userId} api={api} notes={data.notes || []} onChanged={() => afterChange('')} onError={fail} />
+
+      {sheet?.type === 'editSeries' ? (
+        <FixedSheet
+          item={sheet.item} onlyDate={sheet.row.date} rowAmount={sheet.row.amount}
+          userId={userId} api={api} creditCards={creditCards} liquidAccounts={liquidAccounts} categories={categories}
+          onClose={() => setSheet(null)} onDone={afterChange}
+        />
+      ) : null}
+      {sheet?.type === 'editOne' ? (
+        <EditOneSheet row={sheet.row} userId={userId} api={api}
+          onClose={() => setSheet(null)} onDone={afterChange} />
+      ) : null}
 
       {sheet?.type === 'confirm' ? (
         <ConfirmSheet
@@ -1326,11 +1360,15 @@ function FixedPanel({ fixed, userId, api, creditCards, liquidAccounts, categorie
   )
 }
 
-function FixedSheet({ item, userId, api, creditCards, liquidAccounts, categories, onClose, onDone }) {
+function FixedSheet({ item, defaultKind, onlyDate, rowAmount, userId, api, creditCards, liquidAccounts, categories, onClose, onDone }) {
   const editingItem = Boolean(item)
   const bankAccounts = liquidAccounts.filter((a) => a.name !== 'Efectivo')
+  const isIncome = (item?.kind || defaultKind) === 'ingreso'
+  // Desde una fecha del calendario se puede cambiar solo esa fecha o toda la serie
+  const [scope, setScope] = useState('all')
+  const [oneAmount, setOneAmount] = useState(rowAmount != null ? String(rowAmount) : (item?.amount != null ? String(item.amount) : ''))
   const [form, setForm] = useState({
-    kind: item?.kind || (creditCards.length ? 'cargo_tc' : 'pago'),
+    kind: item?.kind || defaultKind || (creditCards.length ? 'cargo_tc' : 'pago'),
     concept: item?.concept || '',
     amount: item?.amount != null ? String(item.amount) : '',
     currency: item?.currency || 'GTQ',
@@ -1361,6 +1399,18 @@ function FixedSheet({ item, userId, api, creditCards, liquidAccounts, categories
   async function submit(e) {
     e.preventDefault()
     setSaving(true); setError('')
+    if (onlyDate && scope === 'one') {
+      try {
+        await api.patchOcurrencia({
+          telegram_user_id: Number(userId), item_id: item.item_id, due_date: onlyDate, amount: Number(oneAmount),
+        })
+        await onDone(`Monto cambiado solo para el ${shortDate(onlyDate)}.`)
+      } catch (err) {
+        setError(err.message || 'No se pudo guardar.')
+        setSaving(false)
+      }
+      return
+    }
     const isCard = form.kind === 'cargo_tc'
     const fields = {
       telegram_user_id: Number(userId),
@@ -1378,7 +1428,9 @@ function FixedSheet({ item, userId, api, creditCards, liquidAccounts, categories
     try {
       if (editingItem) await api.patchProgramado(item.item_id, fields)
       else await api.postProgramado({ ...fields, kind: form.kind })
-      await onDone(editingItem ? 'Pago fijo actualizado.' : 'Pago fijo agregado al calendario.')
+      await onDone(isIncome
+        ? (editingItem ? 'Ingreso fijo actualizado. Las fechas ya confirmadas no cambian.' : 'Ingreso fijo agregado al calendario.')
+        : (editingItem ? 'Pago fijo actualizado. Las fechas ya confirmadas no cambian.' : 'Pago fijo agregado al calendario.'))
     } catch (err) {
       setError(err.message || 'No se pudo guardar.')
       setSaving(false)
@@ -1386,19 +1438,49 @@ function FixedSheet({ item, userId, api, creditCards, liquidAccounts, categories
   }
 
   return (
-    <Sheet title={editingItem ? 'Editar pago fijo' : 'Nueva suscripción o pago fijo'} onClose={onClose}>
+    <Sheet
+      title={isIncome ? (editingItem ? 'Editar ingreso fijo' : 'Nuevo ingreso fijo') : (editingItem ? 'Editar pago fijo' : 'Nueva suscripción o pago fijo')}
+      subtitle={editingItem ? item.concept : undefined}
+      onClose={onClose}
+    >
       {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
+      {onlyDate ? (
+        <div className="seg-toggle" role="radiogroup" aria-label="Qué cambiar">
+          <button type="button" role="radio" aria-checked={scope === 'all'} className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>
+            Toda la serie
+          </button>
+          <button type="button" role="radio" aria-checked={scope === 'one'} className={scope === 'one' ? 'on' : ''} onClick={() => setScope('one')}>
+            Solo el {shortDate(onlyDate)}
+          </button>
+        </div>
+      ) : null}
+      {onlyDate && scope === 'one' ? (
+        <form className="form-grid" onSubmit={submit}>
+          <label className="full-span">
+            <span>Monto del {longDate(onlyDate, Number(onlyDate.slice(0, 4)))}</span>
+            <input type="number" min="0.01" step="0.01" inputMode="decimal" value={oneAmount}
+              onChange={(e) => setOneAmount(e.target.value)} required />
+            <small className="helper-text">Las demás fechas siguen con {item.amount != null ? money(item.amount, item.currency, true) : 'su monto'}.</small>
+          </label>
+          <div className="full-span form-actions">
+            <button className="primary-btn" type="submit" disabled={saving || !oneAmount}>{saving ? 'Guardando...' : 'Guardar'}</button>
+          </div>
+        </form>
+      ) : (
       <form className="form-grid" onSubmit={submit}>
-        <label className="full-span">
-          <span>Cómo se paga</span>
-          <select value={form.kind} onChange={(e) => set('kind', e.target.value)} disabled={editingItem}>
-            {creditCards.length ? <option value="cargo_tc">Se carga a la tarjeta</option> : null}
-            <option value="pago">Lo pago en efectivo o desde el banco</option>
-          </select>
-        </label>
+        {isIncome ? null : (
+          <label className="full-span">
+            <span>Cómo se paga</span>
+            <select value={form.kind} onChange={(e) => set('kind', e.target.value)} disabled={editingItem}>
+              {creditCards.length ? <option value="cargo_tc">Se carga a la tarjeta</option> : null}
+              <option value="pago">Lo pago en efectivo o desde el banco</option>
+            </select>
+          </label>
+        )}
         <label className="full-span">
           <span>Qué es</span>
-          <input value={form.concept} onChange={(e) => set('concept', e.target.value)} maxLength={120} placeholder="Ej. Netflix, Luz, Internet" required />
+          <input value={form.concept} onChange={(e) => set('concept', e.target.value)} maxLength={120}
+            placeholder={isIncome ? 'Ej. Quincena, Sueldo' : 'Ej. Netflix, Luz, Internet'} required />
         </label>
         <label>
           <span>Monto, si es fijo</span>
@@ -1420,7 +1502,7 @@ function FixedSheet({ item, userId, api, creditCards, liquidAccounts, categories
           </label>
         ) : (
           <label className="full-span">
-            <span>Sale de</span>
+            <span>{isIncome ? 'Entra a' : 'Sale de'}</span>
             <select value={form.account} onChange={(e) => set('account', e.target.value)}>
               <option value="Efectivo">Efectivo</option>
               {bankAccounts.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
@@ -1429,7 +1511,7 @@ function FixedSheet({ item, userId, api, creditCards, liquidAccounts, categories
         )}
         {currencyHelp ? <small className="full-span helper-text">{currencyHelp}</small> : null}
         <label>
-          <span>Próximo cargo</span>
+          <span>{isIncome ? 'Desde' : 'Próximo cargo'}</span>
           <input type="date" value={form.start} onChange={(e) => set('start', e.target.value)} required />
         </label>
         <label>
@@ -1444,16 +1526,161 @@ function FixedSheet({ item, userId, api, creditCards, liquidAccounts, categories
           <span>Categoría</span>
           <select value={form.category} onChange={(e) => set('category', e.target.value)}>
             <option value="">La elijo al confirmar</option>
-            {categories.EGR.map((name) => <option key={name} value={name}>{name}</option>)}
+            {(isIncome ? categories.ING : categories.EGR).map((name) => <option key={name} value={name}>{name}</option>)}
           </select>
         </label>
         <label>
           <span>Hasta, si termina</span>
           <input type="date" value={form.end} onChange={(e) => set('end', e.target.value)} />
         </label>
+        {editingItem ? (
+          <small className="full-span helper-text">Cambia todas las fechas pendientes. Las que ya confirmaste no cambian.</small>
+        ) : null}
         <div className="full-span form-actions">
           <button className="primary-btn" type="submit" disabled={saving || !form.concept.trim()}>
             {saving ? 'Guardando...' : editingItem ? 'Guardar cambios' : 'Agregar'}
+          </button>
+        </div>
+      </form>
+      )}
+    </Sheet>
+  )
+}
+
+// ── Ingresos fijos ───────────────────────────────────────────────────────────
+
+function IncomePanel({ fixed, userId, api, creditCards, liquidAccounts, categories, showAmounts, onChanged, onError }) {
+  const [editing, setEditing] = useState(null)
+  const [removing, setRemoving] = useState(null)
+  const items = fixed?.incomes || []
+
+  async function remove(item) {
+    try {
+      await api.deleteProgramado(item.item_id, userId)
+      setRemoving(null)
+      await onChanged('Se quitó de tus ingresos fijos.')
+    } catch (err) {
+      onError(err)
+    }
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Ingresos fijos</h2>
+        {items.length ? <strong>{q(fixed.monthly_income_gtq, showAmounts)} al mes</strong> : null}
+      </div>
+      {items.length === 0 ? (
+        <p className="helper-text">Agrega tu sueldo o quincenas para verlos en el calendario y en la proyección.</p>
+      ) : (
+        <div className="rows">
+          {items.map((item) => (
+            <div key={item.item_id} className="fixed-row">
+              <span className="cal-ico k-ingreso"><Icon name="ingreso" /></span>
+              <div className="cal-main">
+                <span className="cal-concept">{item.concept}</span>
+                <span className="cal-kind">
+                  {item.amount != null ? money(item.amount, item.currency, showAmounts) : 'Monto variable'}
+                  {' · '}{EVERY[item.recurrence] || item.recurrence}
+                  {item.next_date ? ` · próximo ${shortDate(item.next_date)}` : ''}
+                </span>
+                {item.account_name ? <span className="cal-kind">Entra a {item.account_name}</span> : null}
+                {removing === item.item_id ? (
+                  <span className="cal-remove">
+                    <button type="button" className="link-btn danger" onClick={() => remove(item)}>Sí, quitar</button>
+                    <button type="button" className="link-btn" onClick={() => setRemoving(null)}>Cancelar</button>
+                  </span>
+                ) : (
+                  <span className="cal-remove">
+                    <button type="button" className="link-btn" onClick={() => setEditing(item)}>Editar</button>
+                    <button type="button" className="link-btn" onClick={() => setRemoving(item.item_id)}>Quitar</button>
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <button type="button" className="ghost-btn" style={{ marginTop: 12 }} onClick={() => setEditing({})}>
+        <span className="title-with-icon"><Icon name="plus" /> Agregar ingreso fijo</span>
+      </button>
+
+      {editing ? (
+        <FixedSheet
+          item={editing.item_id ? editing : null} defaultKind="ingreso"
+          userId={userId} api={api} creditCards={creditCards} liquidAccounts={liquidAccounts} categories={categories}
+          onClose={() => setEditing(null)}
+          onDone={async (text) => { setEditing(null); await onChanged(text) }}
+        />
+      ) : null}
+    </section>
+  )
+}
+
+// ── Editar un programado de una sola vez ─────────────────────────────────────
+
+function EditOneSheet({ row, userId, api, onClose, onDone }) {
+  const [form, setForm] = useState({
+    concept: row.concept,
+    amount: row.amount != null ? String(row.amount) : '',
+    date: row.date || '',
+    note: row.note || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
+
+  async function submit(e) {
+    e.preventDefault()
+    setSaving(true); setError('')
+    const fields = {
+      telegram_user_id: Number(userId),
+      concept: form.concept.trim(),
+      note: form.note.trim() || null,
+    }
+    if (form.amount) fields.amount = Number(form.amount)
+    if (!row.recurring) fields.start_date = form.date || null
+    try {
+      await api.patchProgramado(row.item_id, fields)
+      await onDone('Cambios guardados.')
+    } catch (err) {
+      setError(err.message || 'No se pudo guardar.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Sheet title="Editar" subtitle={KIND_LABEL[row.kind] || row.kind} onClose={onClose}>
+      {error ? <MessageBanner kind="error">{error}</MessageBanner> : null}
+      <form className="form-grid" onSubmit={submit}>
+        <label className="full-span">
+          <span>Qué es</span>
+          <input value={form.concept} onChange={(e) => set('concept', e.target.value)} maxLength={120} required />
+        </label>
+        {row.kind !== 'recordatorio' ? (
+          <label>
+            <span>Monto{row.currency === 'USD' ? ' en dólares' : ''}</span>
+            <input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.amount}
+              onChange={(e) => set('amount', e.target.value)} placeholder="Vacío si varía" />
+          </label>
+        ) : null}
+        {!row.recurring ? (
+          <label>
+            <span>Fecha</span>
+            <input type="date" value={form.date} onChange={(e) => set('date', e.target.value)} />
+            <small className="helper-text">Vacía la deja en "Sin fecha".</small>
+          </label>
+        ) : null}
+        <label className="full-span">
+          <span>Nota</span>
+          <input value={form.note} onChange={(e) => set('note', e.target.value)} maxLength={300} />
+        </label>
+        {row.recurring ? (
+          <small className="full-span helper-text">Se repite: el cambio aplica a todas las fechas pendientes.</small>
+        ) : null}
+        <div className="full-span form-actions">
+          <button className="primary-btn" type="submit" disabled={saving || !form.concept.trim()}>
+            {saving ? 'Guardando...' : 'Guardar cambios'}
           </button>
         </div>
       </form>
